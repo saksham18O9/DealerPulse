@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DealerPulse — Admin Panel</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%238B5CF6'/></svg>">
+<link rel="stylesheet" href="assets/shared.css">
+<style>
+body{min-height:100vh}
+.admin-login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.admin-glow{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% -5%,rgba(139,92,246,.2),transparent 65%);pointer-events:none}
+.admin-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(60,30,95,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(60,30,95,.2) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+.alg-box{position:relative;z-index:1;width:100%;max-width:420px;padding:24px}
+.alg-brand{text-align:center;margin-bottom:28px}
+.alg-dot{width:12px;height:12px;border-radius:50%;background:var(--admin);animation:pulse 2.5s ease-in-out infinite;display:inline-block;vertical-align:middle;margin-right:10px}
+.alg-nm{font-size:1.8rem;font-weight:900;letter-spacing:-.04em;vertical-align:middle}
+.alg-tag{font-size:.72rem;color:var(--muted);margin-top:6px}
+.alg-badge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 10px;border-radius:20px;background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.3);margin-bottom:12px}
+.alg-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:28px}
+.alg-title{font-size:1.15rem;font-weight:800;margin-bottom:4px}
+.alg-sub{font-size:.8rem;color:var(--muted);margin-bottom:18px}
+.alg-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#F87171;padding:10px 14px;font-size:.8rem;margin-bottom:12px;display:none}.alg-err.show{display:block}
+.alg-fld{margin-bottom:12px}.alg-fld label{display:block;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.alg-fld input{width:100%;padding:11px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+.alg-fld input:focus{border-color:var(--admin);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+.alg-fld input::placeholder{color:var(--muted)}
+.alg-hint{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:10px 14px;font-size:.75rem;color:var(--muted);margin-bottom:16px;line-height:1.7}
+.alg-hint code{background:rgba(139,92,246,.15);color:var(--purple);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:.75rem}
+.alg-pw{position:relative}.alg-pw input{padding-right:44px}
+.alg-pw-t{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:.95rem;padding:4px;line-height:1;font-family:inherit}
+.btn-admin{width:100%;padding:12px 20px;background:var(--admin);color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:4px}
+.btn-admin:hover{background:var(--admin-d);transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,92,246,.35)}
+.alg-foot{text-align:center;font-size:.68rem;color:var(--muted);margin-top:14px}
+.admin-panel{display:none;min-height:100vh;flex-direction:column}
+.admin-panel.on{display:flex}
+.adm-hdr{background:var(--sidebar);border-bottom:1px solid var(--border);padding:0 24px;height:var(--hh);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5;flex-shrink:0}
+.adm-brand{display:flex;align-items:center;gap:8px}
+.adm-brand-dot{width:8px;height:8px;border-radius:50%;background:var(--admin);animation:pulse 2.5s ease-in-out infinite}
+.adm-brand-nm{font-size:.9rem;font-weight:900;letter-spacing:-.03em}
+.adm-ver{font-size:.6rem;background:rgba(139,92,246,.15);color:var(--purple);padding:2px 7px;border-radius:4px}
+.live-pill{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;font-weight:700;color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);padding:2px 9px;border-radius:20px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.6s ease-in-out infinite}
+.adm-right{display:flex;align-items:center;gap:10px}
+.adm-body{flex:1;padding:24px;max-width:1100px;margin:0 auto;width:100%}
+.adm-tabs{display:flex;gap:4px;background:var(--card);border-radius:10px;padding:4px;border:1px solid var(--border);width:fit-content;margin-bottom:22px}
+.adm-tab{padding:7px 18px;font-size:.82rem;font-weight:600;border:none;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap}
+.adm-tab.on{background:var(--admin);color:#fff}
+.adm-tab:not(.on):hover{background:rgba(139,92,246,.12);color:var(--admin)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;margin-bottom:4px}
+.stat-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.req-card{background:var(--card);border:1.5px solid rgba(245,158,11,.35);border-radius:var(--r);padding:20px;margin-bottom:14px;animation:fadeIn .25s ease}
+.req-av{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--amber),#f97316);display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:800;color:#000;flex-shrink:0}
+.req-meta{font-size:.78rem;color:var(--muted);margin-top:3px}
+.req-meta span{color:var(--text);font-weight:600;margin-left:4px}
+.note-inp{width:100%;padding:8px 12px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:.82rem;font-family:inherit;outline:none;resize:none;margin-top:10px;transition:border-color .2s}
+.note-inp:focus{border-color:var(--red)}
+.user-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.user-row:last-child{border-bottom:none}
+.u-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff;flex-shrink:0}
+.u-info{flex:1;min-width:0}
+.u-name{font-size:.88rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.u-meta{font-size:.72rem;color:var(--muted);margin-top:2px}
+.u-stat{flex-shrink:0;text-align:right;min-width:70px}
+.u-stat-time{font-size:.7rem;color:var(--muted)}
+.u-stat-cnt{font-size:.82rem;font-weight:700}
+.u-actions{display:flex;gap:6px;flex-shrink:0}
+.hist-filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.hist-flt{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer;font-size:.75rem;font-weight:600;font-family:inherit;transition:all .15s}
+.hist-flt.on{background:var(--admin);color:#fff;border-color:var(--admin)}
+.hist-flt:not(.on):hover{border-color:var(--admin);color:var(--admin)}
+.hist-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.hist-row:last-child{border-bottom:none}
+.hdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.hinfo{flex:1;min-width:0}
+.hname{font-size:.84rem;font-weight:600}
+.hmeta{font-size:.72rem;color:var(--muted);margin-top:2px}
+.htime{font-size:.7rem;color:var(--muted);flex-shrink:0;white-space:nowrap}
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-ic{font-size:2.5rem;margin-bottom:12px}
+.empty-msg{font-size:.88rem}
+@media(max-width:768px){.stats-grid{grid-template-columns:1fr 1fr}.adm-body{padding:16px}}
+</style>
+</head>
+<body>
+
+<!-- ═══ ADMIN LOGIN ═══ -->
+<div class="admin-login-page" id="admin-login">
+  <div class="admin-glow"></div>
+  <div class="admin-grid"></div>
+  <div class="alg-box">
+    <div class="alg-brand">
+      <div><span class="alg-dot"></span><span class="alg-nm">DealerPulse</span></div>
+      <div class="alg-tag">Admin Control Panel</div>
+    </div>
+    <div class="alg-card">
+      <div class="alg-badge">🛡 Admin Access</div>
+      <div class="alg-title">Admin Login</div>
+      <div class="alg-sub">Restricted area. Admin credentials required.</div>
+      <div class="alg-hint">Credentials &nbsp;·&nbsp; Username: <code>admin</code> &nbsp;·&nbsp; Password: <code>DealerAdmin@2026</code></div>
+      <div class="alg-err" id="alg-err"></div>
+      <div class="alg-fld"><label>Username</label><input type="text" id="alg-user" placeholder="admin" autocomplete="off"></div>
+      <div class="alg-fld"><label>Password</label>
+        <div class="alg-pw"><input type="password" id="alg-pass" placeholder="Enter admin password"><button class="alg-pw-t" onclick="tpwA()">👁</button></div>
+      </div>
+      <button class="btn-admin" onclick="adminLogin()">Login to Admin Panel</button>
+    </div>
+    <div class="alg-foot"><a href="index.html" style="color:var(--muted);text-decoration:underline">← Back to main login</a></div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN PANEL ═══ -->
+<div class="admin-panel" id="admin-panel">
+  <header class="adm-hdr">
+    <div class="adm-brand">
+      <div class="adm-brand-dot"></div>
+      <span class="adm-brand-nm">DealerPulse Admin</span>
+      <span class="adm-ver">v3.0 Cloud</span>
+      <span class="live-pill" id="live-pill"><span class="live-dot"></span> Live</span>
+    </div>
+    <div class="adm-right">
+      <div class="upill"><div class="uav" style="background:var(--admin)">A</div><span>Admin</span></div>
+      <button class="btn btn-sm btn-ghost" onclick="adminLogout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="adm-body">
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="adm-tabs">
+      <button class="adm-tab on" data-tab="pending" onclick="showTab('pending')">📋 Pending <span id="pend-cnt-tab"></span></button>
+      <button class="adm-tab" data-tab="users" onclick="showTab('users')">👥 All Users</button>
+      <button class="adm-tab" data-tab="history" onclick="showTab('history')">📄 Login History</button>
+    </div>
+
+    <div id="tab-pending" class="tab-sec"></div>
+    <div id="tab-users" class="tab-sec" style="display:none"></div>
+    <div id="tab-history" class="tab-sec" style="display:none"></div>
+  </div>
+
+  <footer class="site-footer"><span>DealerPulse Admin · All activity is logged · Data syncs live across all devices</span><span>&copy; 2026</span></footer>
+</div>
+
+<div class="confirm-ov" id="cv-revoke" onclick="if(event.target===this)closeModal('cv-revoke')">
+  <div class="confirm-card">
+    <div style="font-size:2.2rem;margin-bottom:12px">🛡</div>
+    <div style="font-size:1rem;font-weight:800;margin-bottom:8px">Revoke Access?</div>
+    <div class="xs mu" id="cv-msg" style="line-height:1.5;margin-bottom:20px">This user will not be able to log in.</div>
+    <div class="confirm-btns">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('cv-revoke')">Cancel</button>
+      <button class="btn btn-sm btn-r" onclick="execRevoke()">Revoke</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="mv-reset" onclick="if(event.target===this)closeModal('mv-reset')">
+  <div class="modal-card" style="max-width:380px">
+    <div class="modal-hd"><div class="modal-hd-title">🔑 Reset Password</div><button class="modal-close" onclick="closeModal('mv-reset')">✕</button></div>
+    <div class="modal-body">
+      <p class="sm mu mb12">Set a new password for <strong id="reset-name">—</strong></p>
+      <div class="err" id="reset-err" style="display:none;margin-bottom:10px"></div>
+      <label class="lbl">New Password</label>
+      <input class="inp mb12" type="password" id="reset-pw" placeholder="Min 6 characters">
+      <label class="lbl">Confirm Password</label>
+      <input class="inp" type="password" id="reset-pw2" placeholder="Repeat password">
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('mv-reset')">Cancel</button>
+      <button class="btn btn-sm btn-g" onclick="execReset()">Save Password</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/shared.js"></script>
+<script>
+/* ════════════════════════════
+   ADMIN PANEL LOGIC — Cloud Edition
+   ════════════════════════════ */
+
+const ADMIN_CREDS = {user:'admin', pass:'DealerAdmin@2026'};
+let adminAuthed = false;
+let histFilter = 'all';
+let _revokeId = null, _resetId = null;
+
+// Live cached state (kept in sync by Firestore listeners)
+let ALL_USERS = [];
+let ALL_HISTORY = [];
+let UNSUB_USERS = null, UNSUB_HISTORY = null;
+
+function tpwA(){const i=document.getElementById('alg-pass');i.type=i.type==='password'?'text':'password';}
+
+function adminLogin(){
+  const u=document.getElementById('alg-user').value.trim();
+  const p=document.getElementById('alg-pass').value;
+  const err=document.getElementById('alg-err');
+  if(u===ADMIN_CREDS.user && p===ADMIN_CREDS.pass){
+    if(!FIREBASE_CONFIGURED){
+      err.textContent='Firebase is not configured yet. See assets/shared.js.';err.classList.add('show');return;
+    }
+    adminAuthed=true;
+    document.getElementById('admin-login').style.display='none';
+    document.getElementById('admin-panel').classList.add('on');
+    startListeners();
+  } else {
+    err.textContent='Incorrect admin credentials.';err.classList.add('show');
+    const card=document.querySelector('.alg-card');card.style.animation='none';void card.offsetWidth;card.style.animation='shake .4s ease';
+  }
+}
+function adminLogout(){
+  adminAuthed=false;
+  if(UNSUB_USERS) UNSUB_USERS();
+  if(UNSUB_HISTORY) UNSUB_HISTORY();
+  document.getElementById('admin-panel').classList.remove('on');
+  document.getElementById('admin-login').style.display='';
+}
+
+// ── LIVE LISTENERS ────────────────────────────────
+function startListeners(){
+  UNSUB_USERS = listenAllUsers(users=>{
+    ALL_USERS = users;
+    renderAll();
+  });
+  UNSUB_HISTORY = listenHistory(entries=>{
+    ALL_HISTORY = entries;
+    renderStats();
+    renderHistory();
+  }, 200);
+}
+
+function renderAll(){renderStats();renderPending();renderUsers();}
+
+function renderStats(){
+  const pending = ALL_USERS.filter(u=>u.status==='pending').length;
+  const approved = ALL_USERS.filter(u=>u.status==='approved').length;
+  const rejected = ALL_USERS.filter(u=>u.status==='rejected').length;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const loginsToday = ALL_HISTORY.filter(e=>e.timestamp.startsWith(todayStr)&&e.status==='success').length;
+
+  document.getElementById('stats-grid').innerHTML=
+    stat(pending,'Pending Requests','var(--amber)','⏳')+
+    stat(approved,'Approved Users','var(--green)','✅')+
+    stat(rejected,'Rejected','var(--red)','❌')+
+    stat(loginsToday,'Logins Today','var(--blue)','📈');
+
+  const pc=document.getElementById('pend-cnt-tab');
+  if(pc)pc.innerHTML=pending>0?' <span style="background:var(--red);color:#fff;font-size:.6rem;padding:1px 6px;border-radius:20px;font-weight:800">'+pending+'</span>':'';
+}
+function stat(val,lbl,color,ic){
+  return '<div class="stat-chip"><div class="stat-val" style="color:'+color+'">'+ic+' '+val+'</div><div class="stat-lbl">'+lbl+'</div></div>';
+}
+
+function showTab(tab){
+  document.querySelectorAll('.tab-sec').forEach(s=>s.style.display='none');
+  document.getElementById('tab-'+tab).style.display='block';
+  document.querySelectorAll('.adm-tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===tab));
+}
+
+// ── PENDING TAB ───────────────────────────────────
+function renderPending(){
+  const users = ALL_USERS.filter(u=>u.status==='pending');
+  const el = document.getElementById('tab-pending');
+  if(users.length===0){
+    el.innerHTML='<div class="empty"><div class="empty-ic">✅</div><div class="empty-msg">No pending access requests</div></div>';return;
+  }
+  el.innerHTML = users.map(u=>`
+    <div class="req-card" id="rc-${u.id}">
+      <div class="f jb aic mb12" style="flex-wrap:wrap;gap:12px">
+        <div class="f aic g12p">
+          <div class="req-av">${u.name[0]}</div>
+          <div>
+            <div style="font-size:.95rem;font-weight:700">${u.name}</div>
+            <div class="req-meta">Username:<span>${u.username}</span> &nbsp;·&nbsp; Role:<span>${u.role==='manager'?'Manager':'Sales Rep'}</span>${u.territory?' &nbsp;·&nbsp; Territory:<span>'+u.territory+'</span>':''}</div>
+            <div class="req-meta">Requested:<span>${fmtDT(u.createdAt)}</span></div>
+          </div>
+        </div>
+        <div class="f fc g4p" style="align-items:flex-end">
+          <span class="badge b-amber">⏳ Pending</span>
+          ${u.role==='rep'?'<span class="badge b-blue">Sales Rep</span>':'<span class="badge b-amber">Manager</span>'}
+        </div>
+      </div>
+      <div class="info-strip mb8">🔒 Password set by user · Will be auto-linked to ${u.role==='rep'?(u.territory||'new')+' territory rep profile':'manager dashboard'}</div>
+      <textarea class="note-inp" id="note-${u.id}" rows="2" placeholder="Optional: reason for rejection (leave blank if approving)"></textarea>
+      <div class="f g8p mt12">
+        <button class="btn btn-sm btn-g" onclick="approveUser('${u.id}')">✓ Approve</button>
+        <button class="btn btn-sm btn-r" onclick="rejectUser('${u.id}')">✗ Reject</button>
+      </div>
+    </div>`).join('');
+}
+
+async function approveUser(userId){
+  const u = ALL_USERS.find(x=>x.id===userId);
+  if(!u)return;
+  try{
+    const patch = {status:'approved', approvedAt:new Date().toISOString(), approvedBy:'admin'};
+    if(u.role==='rep' && !u.repId){
+      const repId = uid();
+      patch.repId = repId;
+      const sales = await fetchSalesData();
+      sales.reps.push({id:repId,name:u.name,territory:u.territory||'New Territory',
+        targets:{dealers:40,newDealers:6},
+        current:{dealers:0,newDealers:0,location:(u.territory||'New')+' Market',updatedAt:TODAY},expenses:[]});
+      await saveSalesData(sales);
+    }
+    await updateUserDoc(userId, patch);
+    await addHistoryEntry({userId,name:u.name,username:u.username,role:u.role,status:'approved_by_admin',reason:'Admin approved access'});
+    toast(u.name+' approved — they can now log in','✅');
+  } catch(e){
+    console.error(e); toast('Error approving user — check connection','⚠️');
+  }
+}
+
+async function rejectUser(userId){
+  const u = ALL_USERS.find(x=>x.id===userId);
+  if(!u)return;
+  const note = document.getElementById('note-'+userId)?.value.trim()||'';
+  if(!note && !confirm('Reject '+u.name+' without a reason? They will see "No reason provided."')){return;}
+  try{
+    await updateUserDoc(userId, {status:'rejected', rejectedAt:new Date().toISOString(), rejectionNote: note||'No reason provided.'});
+    await addHistoryEntry({userId,name:u.name,username:u.username,role:u.role,status:'rejected_by_admin',reason:'Admin rejected: '+note});
+    toast(u.name+"'s request rejected",'❌');
+  } catch(e){
+    console.error(e); toast('Error rejecting user — check connection','⚠️');
+  }
+}
+
+// ── USERS TAB ─────────────────────────────────────
+function renderUsers(){
+  const users = ALL_USERS;
+  const colorMap={'manager':'#3B82F6','rep':'#8B5CF6'};
+  const rows = users.map(u=>`
+    <div class="user-row">
+      <div class="u-av" style="background:${u.status==='approved'?colorMap[u.role]||'var(--blue)':'#334155'}">${u.name[0]}</div>
+      <div class="u-info">
+        <div class="u-name">${u.name}</div>
+        <div class="u-meta">@${u.username} &nbsp;·&nbsp; ${u.role==='manager'?'Manager':'Sales Rep'}${u.territory?' &nbsp;·&nbsp; '+u.territory:''}</div>
+      </div>
+      <div style="flex-shrink:0;margin:0 12px">
+        <span class="badge ${u.status==='approved'?'b-green':u.status==='pending'?'b-amber':'b-red'}">
+          ${u.status==='approved'?'✅ Active':u.status==='pending'?'⏳ Pending':'❌ Rejected'}
+        </span>
+      </div>
+      <div class="u-stat">
+        <div class="u-stat-cnt">${u.loginCount||0} logins</div>
+        <div class="u-stat-time">${u.lastLoginAt?timeSince(u.lastLoginAt):'Never logged in'}</div>
+      </div>
+      <div class="u-actions">
+        <button class="btn btn-xs btn-ob" onclick="openReset('${u.id}','${escAttr(u.name)}')" title="Reset password">🔑</button>
+        ${u.status==='approved'
+          ?`<button class="btn btn-xs btn-or" onclick="askRevoke('${u.id}','${escAttr(u.name)}')" title="Revoke access">🚫</button>`
+          :u.status==='rejected'
+            ?`<button class="btn btn-xs btn-g" onclick="restoreUser('${u.id}')" title="Restore access">▶</button>`
+            :''}
+      </div>
+    </div>`).join('');
+  document.getElementById('tab-users').innerHTML=`
+    <div class="f jb aic mb16" style="flex-wrap:wrap;gap:10px">
+      <div style="font-size:1rem;font-weight:800">All Users (${users.length})</div>
+      <div class="f g8p">
+        <span class="badge b-green">✅ ${users.filter(u=>u.status==='approved').length} Active</span>
+        <span class="badge b-amber">⏳ ${users.filter(u=>u.status==='pending').length} Pending</span>
+        <span class="badge b-red">❌ ${users.filter(u=>u.status==='rejected').length} Rejected</span>
+      </div>
+    </div>
+    <div class="card">${rows||'<div class="empty"><div class="empty-ic">👥</div><div class="empty-msg">No users yet</div></div>'}</div>`;
+}
+
+function askRevoke(userId,name){
+  _revokeId=userId;
+  document.getElementById('cv-msg').textContent=name+' will immediately lose access to DealerPulse.';
+  openModal('cv-revoke');
+}
+async function execRevoke(){
+  if(!_revokeId)return;
+  const u = ALL_USERS.find(x=>x.id===_revokeId);
+  if(!u){closeModal('cv-revoke');return;}
+  try{
+    await updateUserDoc(_revokeId, {status:'rejected', rejectedAt:new Date().toISOString(), rejectionNote:'Access revoked by admin.'});
+    await addHistoryEntry({userId:_revokeId,name:u.name,username:u.username,role:u.role,status:'revoked_by_admin',reason:'Admin revoked access'});
+    closeModal('cv-revoke');_revokeId=null;
+    toast(u.name+"'s access revoked");
+  } catch(e){ console.error(e); toast('Error revoking access','⚠️'); }
+}
+async function restoreUser(userId){
+  const u = ALL_USERS.find(x=>x.id===userId);
+  if(!u)return;
+  try{
+    await updateUserDoc(userId, {status:'approved', approvedAt:new Date().toISOString(), rejectedAt:null, rejectionNote:''});
+    await addHistoryEntry({userId,name:u.name,username:u.username,role:u.role,status:'restored_by_admin',reason:'Admin restored access'});
+    toast(u.name+"'s access restored",'✅');
+  } catch(e){ console.error(e); toast('Error restoring access','⚠️'); }
+}
+function openReset(userId,name){
+  _resetId=userId;
+  document.getElementById('reset-name').textContent=name;
+  document.getElementById('reset-pw').value='';document.getElementById('reset-pw2').value='';
+  document.getElementById('reset-err').style.display='none';
+  openModal('mv-reset');
+}
+async function execReset(){
+  const pw=document.getElementById('reset-pw').value;
+  const pw2=document.getElementById('reset-pw2').value;
+  const errEl=document.getElementById('reset-err');
+  if(!pw||pw.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.style.display='block';return;}
+  if(pw!==pw2){errEl.textContent='Passwords do not match.';errEl.style.display='block';return;}
+  try{
+    await updateUserDoc(_resetId, {password:pw});
+    closeModal('mv-reset');_resetId=null;
+    toast('Password reset successfully','🔑');
+  } catch(e){ console.error(e); errEl.textContent='Connection error. Try again.';errEl.style.display='block'; }
+}
+
+// ── HISTORY TAB ───────────────────────────────────
+function renderHistory(){
+  const all = ALL_HISTORY;
+  const filtered = histFilter==='all' ? all : all.filter(e=>e.status===histFilter||e.status.includes(histFilter));
+  const dotColor={success:'var(--green)',failed:'var(--red)',pending:'var(--amber)',blocked:'var(--amber)',approved_by_admin:'var(--green)',rejected_by_admin:'var(--red)',revoked_by_admin:'var(--red)',restored_by_admin:'var(--green)'};
+  const rows = filtered.slice(0,200).map(e=>`
+    <div class="hist-row">
+      <div class="hdot" style="background:${dotColor[e.status]||'var(--muted)'}"></div>
+      <div class="hinfo">
+        <div class="hname">${e.name} <span class="badge ${e.status==='success'||e.status.includes('approved')||e.status.includes('restored')?'b-green':e.status==='pending'?'b-amber':'b-red'}" style="font-size:.62rem">${e.status.replace(/_/g,' ')}</span></div>
+        <div class="hmeta">@${e.username} &nbsp;·&nbsp; ${e.role} &nbsp;·&nbsp; ${e.browser}${e.reason?' &nbsp;·&nbsp; <em>'+e.reason+'</em>':''}</div>
+      </div>
+      <div class="htime">${fmtDT(e.timestamp)}</div>
+    </div>`).join('');
+
+  const filterBtns=[
+    {k:'all',l:'All ('+all.length+')'},
+    {k:'success',l:'✅ Success'},
+    {k:'failed',l:'❌ Failed'},
+    {k:'blocked',l:'🚫 Blocked'},
+    {k:'pending',l:'⏳ Pending'},
+  ].map(f=>`<button class="hist-flt ${histFilter===f.k?'on':''}" onclick="setFilter('${f.k}')">${f.l}</button>`).join('');
+
+  document.getElementById('tab-history').innerHTML=`
+    <div class="f jb aic mb4" style="flex-wrap:wrap;gap:8px">
+      <div style="font-size:1rem;font-weight:800">Login History</div>
+      ${all.length>0?`<button class="btn btn-xs btn-or" onclick="clearHistoryPrompt()">🗑 Note</button>`:''}
+    </div>
+    <div class="hist-filters">${filterBtns}</div>
+    <div class="card">${rows||'<div class="empty"><div class="empty-ic">📄</div><div class="empty-msg">No login history yet</div></div>'}</div>
+    ${filtered.length>200?`<div class="xs mu" style="text-align:center;margin-top:10px">Showing 200 of ${filtered.length} entries</div>`:''}`;
+}
+function setFilter(f){histFilter=f;renderHistory();}
+function clearHistoryPrompt(){
+  toast('History entries are kept permanently in Firestore for audit purposes. Delete manually in the Firebase Console if needed.','ℹ️');
+}
+
+// ── INIT ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!adminAuthed) adminLogin();
+    if(e.key==='Escape') document.querySelectorAll('.modal-ov.on,.confirm-ov.on').forEach(el=>el.classList.remove('on'));
+  });
+});
+</script>
+</body>
+</html>

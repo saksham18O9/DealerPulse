@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DealerPulse — Manager Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%233B82F6'/></svg>">
+<link rel="stylesheet" href="assets/shared.css">
+<style>
+body{display:flex;min-height:100vh;flex-direction:column}
+.layout{display:flex;flex:1}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow-x:hidden}
+.live-pill{display:inline-flex;align-items:center;gap:5px;font-size:.64rem;font-weight:700;color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);padding:2px 8px;border-radius:20px;margin-left:8px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.6s ease-in-out infinite}
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:14px}
+.loading-screen.hide{display:none}
+.spin-lg{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loading-screen">
+  <div class="spin-lg"></div>
+  <div class="mu sm">Loading dashboard…</div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="main-sidebar">
+    <div class="sb-brand">
+      <div class="sb-dot"></div><span class="sb-name">DealerPulse</span>
+      <span class="sb-ver">v3.0</span>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-sec">Navigation</div>
+      <button class="sb-link active" data-tab="dashboard" onclick="switchTab('dashboard')"><span class="sb-ic">📈</span> Dashboard</button>
+      <button class="sb-link" data-tab="team" onclick="switchTab('team')">
+        <span class="sb-ic">👥</span> Team Overview
+        <span class="sb-badge" id="team-badge">0</span>
+      </button>
+      <button class="sb-link" data-tab="incentives" onclick="switchTab('incentives')"><span class="sb-ic">💰</span> Incentives</button>
+      <button class="sb-link" data-tab="financials" onclick="switchTab('financials')"><span class="sb-ic">📊</span> P&amp;L Statement</button>
+      <button class="sb-link" data-tab="forecast" onclick="switchTab('forecast')"><span class="sb-ic">🔮</span> Forecast</button>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-stat"><span>Team members</span><span id="sb-team">—</span></div>
+      <div class="sb-stat"><span>Pending expenses</span><span id="sb-pend">—</span></div>
+      <a class="sb-logout" href="index.html" onclick="doLogout(event)">⎋ &nbsp;Logout</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="mh">
+      <div class="f aic g8p">
+        <button class="hbg" onclick="toggleMob()"><span></span><span></span><span></span></button>
+        <div class="mh-title" id="mh-title">Dashboard</div>
+        <span class="live-pill" id="live-pill"><span class="live-dot"></span> Live</span>
+      </div>
+      <div class="mh-right">
+        <span class="mh-date" id="mh-date"></span>
+        <div class="upill"><div class="uav">M</div><span>Manager</span></div>
+        <a class="btn btn-sm btn-ghost no-print" href="index.html" onclick="doLogout(event)" style="font-size:.72rem;padding:5px 10px;text-decoration:none">Logout</a>
+      </div>
+    </header>
+
+    <div id="tc-dashboard" class="tc active"></div>
+    <div id="tc-team" class="tc"></div>
+    <div id="tc-incentives" class="tc"></div>
+    <div id="tc-financials" class="tc"></div>
+    <div id="tc-forecast" class="tc"></div>
+
+    <footer class="site-footer no-print" style="margin-top:auto">
+      <span>DealerPulse v3.0 · Lithium Sales Division · Synced live via cloud</span>
+      <span>&copy; 2026 Field Sales Management</span>
+    </footer>
+  </div>
+</div>
+
+<div class="mob-ovl" id="mob-ovl" onclick="closeMob()"></div>
+<nav class="mob-drawer" id="mob-drawer">
+  <div class="sb-brand">
+    <div class="sb-dot"></div><span class="sb-name">DealerPulse</span>
+    <button class="modal-close" style="margin-left:auto" onclick="closeMob()">✕</button>
+  </div>
+  <div style="padding:10px 0;flex:1">
+    <button class="sb-link" onclick="closeMob();switchTab('dashboard')"><span class="sb-ic">📈</span> Dashboard</button>
+    <button class="sb-link" onclick="closeMob();switchTab('team')"><span class="sb-ic">👥</span> Team Overview</button>
+    <button class="sb-link" onclick="closeMob();switchTab('incentives')"><span class="sb-ic">💰</span> Incentives</button>
+    <button class="sb-link" onclick="closeMob();switchTab('financials')"><span class="sb-ic">📊</span> P&amp;L Statement</button>
+    <button class="sb-link" onclick="closeMob();switchTab('forecast')"><span class="sb-ic">🔮</span> Forecast</button>
+  </div>
+  <div style="padding:14px;border-top:1px solid var(--border)">
+    <a class="sb-logout" href="index.html" onclick="doLogout(event)">⎋ Logout</a>
+  </div>
+</nav>
+
+<div class="modal-ov" id="modal-add" onclick="if(event.target===this)closeModal('modal-add')">
+  <div class="modal-card">
+    <div class="modal-hd"><div class="modal-hd-title">+ Add New Sales Rep</div><button class="modal-close" onclick="closeModal('modal-add')">✕</button></div>
+    <div class="modal-body">
+      <div class="fld" style="margin-bottom:12px"><label style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px">Full Name</label><input type="text" class="inp" id="nr-name" placeholder="e.g. Sunita Verma"></div>
+      <div class="fld" style="margin-bottom:12px"><label style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px">Territory</label><input type="text" class="inp" id="nr-terr" placeholder="e.g. Rewari"></div>
+      <div class="g2" style="margin-bottom:12px">
+        <div><label class="lbl">Dealer Target</label><input type="number" class="inp" id="nr-dt" value="40"></div>
+        <div><label class="lbl">New Dealer Target</label><input type="number" class="inp" id="nr-ndt" value="6"></div>
+      </div>
+      <div style="font-size:.75rem;color:var(--muted);padding:8px 12px;background:rgba(59,130,246,.06);border-radius:8px;border:1px solid rgba(59,130,246,.15)">🔒 This only creates the rep profile for sales tracking. To give them login access, they must use "Request Access" on the login page and you approve them in the Admin Panel.</div>
+      <div class="err" id="nr-err" style="margin-top:12px;margin-bottom:0"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('modal-add')">Cancel</button>
+      <button class="btn btn-sm btn-g" onclick="confirmAddRep()">+ Add Rep</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-ov" id="confirm-del" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-card">
+    <div style="font-size:2.5rem;margin-bottom:12px">🗑</div>
+    <div style="font-size:1rem;font-weight:800;margin-bottom:8px">Remove Sales Rep?</div>
+    <div class="xs mu" id="confirm-msg" style="line-height:1.5">This will permanently remove the rep and all their data.</div>
+    <div class="confirm-btns">
+      <button class="btn btn-sm btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-sm btn-r" onclick="execDelete()">Yes, Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="modal-print" onclick="if(event.target===this)closeModal('modal-print')">
+  <div class="modal-card" style="max-width:360px">
+    <div class="modal-hd"><div class="modal-hd-title">📄 Export P&amp;L</div><button class="modal-close" onclick="closeModal('modal-print')">✕</button></div>
+    <div class="modal-body">
+      <p class="sm mu mb16" style="line-height:1.6">Your browser will open the print dialog. Save as PDF or print directly.</p>
+      <button class="btn btn-prim" onclick="doPrint()">📄 Open Print / Save as PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/shared.js"></script>
+<script>
+/* ─── Manager Dashboard — Cloud Edition ─────────── */
+let DATA = null;
+let editTarget = null, expView = null, activeTab = 'dashboard', _delId = null;
+let UNSUB_SALES = null;
+let _saveTimer = null;
+
+function doLogout(e){e.preventDefault();if(UNSUB_SALES)UNSUB_SALES();clearAuth();window.location.href='index.html';}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = getAuth();
+  if(!auth || auth.role !== 'manager'){ window.location.href='index.html'; return; }
+  if(!FIREBASE_CONFIGURED){
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:420px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Firebase not configured</div><div class="sm mu">Paste your Firebase project config into assets/shared.js to use this dashboard.</div></div>';
+    return;
+  }
+  document.getElementById('mh-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+
+  try{
+    DATA = await fetchSalesData();
+  } catch(e){
+    console.error(e);
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:420px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Connection error</div><div class="sm mu">Could not reach the cloud database. Check your internet connection.</div></div>';
+    return;
+  }
+
+  document.getElementById('loading-screen').classList.add('hide');
+  updateSidebar(); renderDashboard(); renderTeam(); renderIncentives(); renderFinancials(); renderForecast();
+  switchTab('dashboard');
+
+  // Live sync: re-render whenever the cloud data changes (e.g. a rep updates their status)
+  UNSUB_SALES = listenSalesData(remote=>{
+    DATA = remote;
+    updateSidebar();
+    if(activeTab==='dashboard') renderDashboard();
+    if(activeTab==='team' && editTarget===null && expView===null) renderTeam();
+    if(activeTab==='incentives') renderIncentives();
+    if(activeTab==='financials') renderPLCard();
+    if(activeTab==='forecast') renderForecast();
+  });
+});
+
+// Debounced cloud save: batches rapid edits (e.g. typing in a number field) into one write
+function persist(){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async ()=>{
+    try{ await saveSalesData(DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
+  }, 250);
+}
+function updRep(id,fn){ DATA.reps = DATA.reps.map(r=>r.id===id?fn({...r}):r); persist(); }
+
+function updateSidebar(){
+  const p = DATA.reps.reduce((s,r)=>s+r.expenses.filter(e=>e.status==='pending').length,0);
+  const b = document.getElementById('team-badge');
+  b.textContent=p; b.classList.toggle('on',p>0);
+  document.getElementById('sb-team').textContent = DATA.reps.length;
+  document.getElementById('sb-pend').textContent = p;
+}
+function switchTab(tab){
+  activeTab=tab; editTarget=null; expView=null;
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tc-'+tab).classList.add('active');
+  const titles={dashboard:'Dashboard',team:'Team Overview',incentives:'Incentives',financials:'P&L Statement',forecast:'Q3 Forecast'};
+  document.getElementById('mh-title').textContent = titles[tab]||tab;
+  document.querySelectorAll('.sb-link').forEach(l=>l.classList.toggle('active',l.dataset.tab===tab));
+  if(tab==='team') renderTeam();
+  if(tab==='incentives') renderIncentives();
+  if(tab==='financials') renderFinancials();
+  if(tab==='forecast') renderForecast();
+  if(tab==='dashboard') renderDashboard();
+}
+
+// ── DASHBOARD ─────────────────────────────────────
+function renderDashboard(){
+  const reps=DATA.reps, f=DATA.financials, pl=calcPL(f), proj=projectQ(f), inc=DATA.incentives;
+  const totD=reps.reduce((s,r)=>s+r.current.dealers,0);
+  const totN=reps.reduce((s,r)=>s+r.current.newDealers,0);
+  const avgS=reps.length?Math.round(reps.reduce((s,r)=>s+score(r),0)/reps.length):0;
+  const pending=[];
+  reps.forEach(r=>r.expenses.filter(e=>e.status==='pending').forEach(e=>pending.push({rep:r,exp:e})));
+  pending.sort((a,b)=>b.exp.date.localeCompare(a.exp.date));
+  const ranked=[...reps].sort((a,b)=>score(b)-score(a));
+
+  const medals=['🥇','🥈','🥉'];
+  const lbRows=ranked.map((r,i)=>{
+    const sc=score(r), col=sc>=75?'var(--green)':sc>=50?'var(--blue)':'var(--amber)';
+    return `<div class="lb-row">
+      <div class="lb-rank">${i<3?medals[i]:'<span class="mu">'+(i+1)+'</span>'}</div>
+      <div class="lb-info"><div class="lb-name">${r.name}</div><div class="lb-terr">${r.territory}</div></div>
+      <div style="flex:2;min-width:0;padding:0 10px">
+        <div class="xs mu mb4">${pct(r.current.dealers,r.targets.dealers)}% dealers &nbsp;·&nbsp; ${pct(r.current.newDealers,r.targets.newDealers)}% new</div>
+        <div class="bar-wrap"><div class="bar" style="width:${sc}%;background:${col}"></div></div>
+      </div>
+      <div class="lb-score" style="color:${col}">${sc}%</div>
+    </div>`;
+  }).join('');
+
+  const actRows=pending.slice(0,6).map(({rep,exp})=>`
+    <div class="act-row">
+      <div class="act-dot" style="background:var(--amber)"></div>
+      <div style="flex:1;min-width:0">
+        <div class="sm bold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${rep.name} — ${exp.desc}</div>
+        <div class="xs mu">${exp.date} &nbsp;·&nbsp; ${rep.territory}</div>
+      </div>
+      <span class="bold sm" style="flex-shrink:0;margin-left:8px">${fmtINR(exp.amount)}</span>
+      <button class="btn btn-xs btn-g" style="margin-left:6px;flex-shrink:0" onclick="quickAppr('${rep.id}','${exp.id}')">✓</button>
+    </div>`).join('');
+
+  const qlItems=[
+    {ic:'📌',bg:'rgba(59,130,246,.12)',tab:'team',txt:'Manage Team & Approve Expenses'},
+    {ic:'💰',bg:'rgba(245,158,11,.12)',tab:'incentives',txt:'Configure Incentive Payouts'},
+    {ic:'📈',bg:'rgba(16,185,129,.12)',tab:'financials',txt:'Update P&L Statement'},
+    {ic:'🔮',bg:'rgba(139,92,246,.12)',tab:'forecast',txt:'View Quarter Forecast'},
+  ].map(q=>`<div class="ql" onclick="switchTab('${q.tab}')"><div class="ql-ic" style="background:${q.bg}">${q.ic}</div><span class="sm bold">${q.txt}</span><span class="mu" style="margin-left:auto">→</span></div>`).join('');
+
+  document.getElementById('tc-dashboard').innerHTML=`
+    <div class="kpi-grid">
+      <div class="kpi"><span class="kpi-ic">🏪</span><div class="kpi-val" style="color:var(--blue)">${totD}</div><div class="kpi-lbl">Total Active Dealers</div><div class="kpi-sub">Across all territories</div><div class="kpi-glow" style="background:var(--blue)"></div></div>
+      <div class="kpi"><span class="kpi-ic">✨</span><div class="kpi-val" style="color:var(--amber)">${totN}</div><div class="kpi-lbl">New Dealers Onboarded</div><div class="kpi-sub">This period</div><div class="kpi-glow" style="background:var(--amber)"></div></div>
+      <div class="kpi"><span class="kpi-ic">🏆</span><div class="kpi-val" style="color:var(--green)">${avgS}%</div><div class="kpi-lbl">Team Avg Score</div><div class="kpi-sub">Composite of all reps</div><div class="kpi-glow" style="background:var(--green)"></div></div>
+      <div class="kpi"><span class="kpi-ic">📊</span><div class="kpi-val" style="color:var(--purple)">${fmtINR(proj.pat)}</div><div class="kpi-lbl">Projected Q3 PAT</div><div class="kpi-sub">Based on current trend</div><div class="kpi-glow" style="background:var(--purple)"></div></div>
+    </div>
+    <div class="g2 mb16">
+      <div class="card">
+        <div class="f jb aic mb12"><span class="bold sm">Team Leaderboard</span><button class="btn btn-xs btn-ob" onclick="switchTab('team')">View All →</button></div>
+        ${lbRows}
+      </div>
+      <div class="card">
+        <div class="f jb aic mb12"><span class="bold sm">Financial Snapshot</span><button class="btn btn-xs btn-ob" onclick="switchTab('financials')">Full P&L →</button></div>
+        ${plRow('Revenue',f.revenue)}${plRow('Less: COGS',-(f.cogs||0),false,true)}${plRow('Gross Profit',pl.gross,true)}
+        <div class="xs mu mt4 mb8">Gross Margin: ${pl.grossPct}%</div>
+        ${plRow('Operating Profit (EBIT)',pl.operating,true)}${plRow('Net Profit Before Tax',pl.npbt,true)}
+        <div class="pl-pat"><span class="bold">PAT</span><span style="font-size:1.2rem;font-weight:900;color:${pl.pat>=0?'var(--green)':'var(--red)'}">${fmtINR(pl.pat)}</span></div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="f jb aic mb12"><span class="bold sm">Pending Expenses</span><span class="badge b-amber">${pending.length} awaiting</span></div>
+        ${pending.length===0?'<p class="xs mu" style="text-align:center;padding:16px">No pending expenses ✓</p>':actRows}
+      </div>
+      <div class="card"><div class="bold sm mb12">Quick Navigation</div>${qlItems}</div>
+    </div>`;
+}
+function quickAppr(repId,expId){
+  updRep(repId,r=>({...r,expenses:r.expenses.map(e=>e.id===expId?{...e,status:'approved'}:e)}));
+  updateSidebar(); renderDashboard(); toast('Expense approved');
+}
+
+// ── TEAM TAB ──────────────────────────────────────
+function renderTeam(){
+  const ranked=[...DATA.reps].sort((a,b)=>score(b)-score(a));
+  const html=ranked.map((r,i)=>{
+    const dp=pct(r.current.dealers,r.targets.dealers), np=pct(r.current.newDealers,r.targets.newDealers), sc=score(r);
+    const pend=r.expenses.filter(e=>e.status==='pending').length;
+    const rbc=i===0?'b-amber':i===1?'b-blue':'b-muted';
+    return `<div class="card">
+      <div class="f jb aic mb12">
+        <div><div style="font-size:.95rem;font-weight:700">${r.name}</div><div class="xs mu mt4">${r.territory} Territory</div></div>
+        <div class="f fc g4p" style="align-items:flex-end">
+          <span class="badge ${rbc}">#${i+1} Rank</span>
+          ${pend>0?`<span class="badge b-red">${pend} pending</span>`:''}
+        </div>
+      </div>
+      <div class="g2 mb12">
+        <div><span class="lbl">Dealers</span>
+          <div class="f aic g8p mb4"><span style="font-size:1.3rem;font-weight:900;color:var(--blue)">${r.current.dealers}</span><span class="mu sm">/ ${r.targets.dealers}</span><span class="xs" style="color:${dp>=80?'var(--green)':'var(--muted)'}">${dp}%</span></div>
+          <div class="bar-wrap"><div class="bar" style="width:${dp}%;background:${dp>=80?'var(--green)':'var(--blue)'}"></div></div></div>
+        <div><span class="lbl">New Dealers</span>
+          <div class="f aic g8p mb4"><span style="font-size:1.3rem;font-weight:900;color:var(--amber)">${r.current.newDealers}</span><span class="mu sm">/ ${r.targets.newDealers}</span><span class="xs" style="color:${np>=80?'var(--green)':'var(--muted)'}">${np}%</span></div>
+          <div class="bar-wrap"><div class="bar" style="width:${np}%;background:${np>=80?'var(--green)':'var(--amber)'}"></div></div></div>
+      </div>
+      <div class="mb12"><div class="f jb mb4"><span class="lbl">Overall Score</span><span style="font-size:.7rem;font-weight:700;color:${sc>=75?'var(--green)':sc>=50?'var(--blue)':'var(--amber)'}">${sc}%</span></div>
+        <div class="bar-wrap lg"><div class="bar" style="width:${sc}%;background:${sc>=75?'var(--green)':sc>=50?'var(--blue)':'var(--amber)'}"></div></div></div>
+      <div class="xs mu mb12">📍 ${r.current.location} &nbsp;·&nbsp; ${r.current.updatedAt}</div>
+      <div class="f g8p">
+        <button class="btn btn-sm btn-ob" onclick="toggleEdit('${r.id}')">✏ Set Targets</button>
+        <button class="btn btn-sm ${pend>0?'btn-r':'btn-ghost'}" onclick="toggleExpV('${r.id}')">💳 Expenses${pend>0?' ('+pend+')':''}</button>
+        <button class="btn btn-sm btn-or" onclick="askDel('${r.id}','${escAttr(r.name)}')" style="margin-left:auto" title="Remove">🗑</button>
+      </div>
+      ${editTarget===r.id?`<div class="ep"><div class="bold sm mb12">Set Targets — ${r.name}</div>
+        <div class="g2 mb12"><div><label class="lbl">Dealer Target</label><input class="inp" type="number" id="td-d-${r.id}" value="${r.targets.dealers}"></div>
+        <div><label class="lbl">New Dealer Target</label><input class="inp" type="number" id="td-n-${r.id}" value="${r.targets.newDealers}"></div></div>
+        <div class="f g8p"><button class="btn btn-sm btn-g" onclick="saveTarget('${r.id}')">✓ Save</button><button class="btn btn-sm btn-ghost" onclick="cancelEdit()">Cancel</button></div></div>`:''}
+      ${expView===r.id?`<div class="ep"><div class="bold sm mb12">Expenses — ${r.name}</div>${
+        r.expenses.length===0?'<p class="xs mu">No expenses submitted.</p>':
+        r.expenses.map(ex=>`<div class="er"><div><div class="sm">${ex.desc}</div><div class="xs mu mt4">${ex.date}</div></div>
+          <div class="f aic g8p"><span class="bold">${fmtINR(ex.amount)}</span>
+          ${ex.status==='pending'
+            ?`<button class="btn btn-xs btn-g" onclick="apprExp('${r.id}','${ex.id}','approved')">✓</button><button class="btn btn-xs btn-r" onclick="apprExp('${r.id}','${ex.id}','rejected')">✗</button>`
+            :`<span class="badge ${ex.status==='approved'?'b-green':'b-red'}">${ex.status}</span>`}
+          </div></div>`).join('')
+      }</div>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('tc-team').innerHTML=`
+    <div class="f jb aic mb20"><div class="sec-t" style="margin-bottom:0">Sales Team</div><button class="btn btn-sm btn-g" onclick="openModal('modal-add')">+ Add Rep</button></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">${html}</div>`;
+}
+function toggleEdit(id){editTarget=editTarget===id?null:id;if(editTarget)expView=null;renderTeam();}
+function toggleExpV(id){expView=expView===id?null:id;if(expView)editTarget=null;renderTeam();}
+function cancelEdit(){editTarget=null;renderTeam();}
+function saveTarget(repId){
+  const d=+document.getElementById('td-d-'+repId).value, n=+document.getElementById('td-n-'+repId).value;
+  updRep(repId,r=>({...r,targets:{dealers:d,newDealers:n}}));
+  editTarget=null; renderTeam(); updateSidebar();
+  toast('Targets saved for '+DATA.reps.find(r=>r.id===repId).name);
+}
+function apprExp(repId,expId,status){
+  updRep(repId,r=>({...r,expenses:r.expenses.map(e=>e.id===expId?{...e,status}:e)}));
+  renderTeam(); renderDashboard(); updateSidebar();
+  toast(status==='approved'?'Expense approved':'Expense rejected', status==='approved'?'✅':'❌');
+}
+function confirmAddRep(){
+  const name=document.getElementById('nr-name').value.trim();
+  const terr=document.getElementById('nr-terr').value.trim();
+  const dt=+document.getElementById('nr-dt').value||40;
+  const ndt=+document.getElementById('nr-ndt').value||6;
+  if(!name){const e=document.getElementById('nr-err');e.textContent='Please enter a name.';e.classList.add('show');return;}
+  if(!terr){const e=document.getElementById('nr-err');e.textContent='Please enter a territory.';e.classList.add('show');return;}
+  DATA.reps.push({id:uid(),name,territory:terr,targets:{dealers:dt,newDealers:ndt},
+    current:{dealers:0,newDealers:0,location:terr+' Market',updatedAt:TODAY},expenses:[]});
+  persist(); closeModal('modal-add');
+  document.getElementById('nr-name').value=''; document.getElementById('nr-terr').value='';
+  document.getElementById('nr-err').classList.remove('show');
+  renderTeam(); renderDashboard(); updateSidebar();
+  toast('Added '+name+' to the team','✨');
+}
+function askDel(repId,name){
+  _delId=repId;
+  document.getElementById('confirm-msg').textContent='This will permanently remove '+name+' and all their data. This cannot be undone.';
+  document.getElementById('confirm-del').classList.add('on');
+}
+function closeConfirm(){document.getElementById('confirm-del').classList.remove('on');_delId=null;}
+function execDelete(){
+  if(!_delId)return;
+  const name=DATA.reps.find(r=>r.id===_delId)?.name||'Rep';
+  DATA.reps=DATA.reps.filter(r=>r.id!==_delId);
+  persist(); closeConfirm(); renderTeam(); renderDashboard(); updateSidebar();
+  toast(name+' removed from team');
+}
+
+// ── INCENTIVES TAB ────────────────────────────────
+function renderIncentives(){
+  const inc=DATA.incentives;
+  const totalCost=DATA.reps.reduce((s,r)=>s+r.current.dealers*inc.perRepSale+r.current.newDealers*inc.perRepNewDealer+r.current.newDealers*inc.channelBonus*inc.channelPeriod,0);
+  const repCards=DATA.reps.map(r=>{
+    const ri=r.current.dealers*inc.perRepSale+r.current.newDealers*inc.perRepNewDealer;
+    const ci=r.current.newDealers*inc.channelBonus*inc.channelPeriod;
+    return `<div class="card card-sm"><div class="bold mb8">${r.name}</div>
+      <div class="xs mu mb4">Rep: <span style="color:var(--blue);font-weight:700">${fmtINR(ri)}</span></div>
+      <div class="xs mu mb8">Channel: <span style="color:var(--amber);font-weight:700">${fmtINR(ci)}</span></div>
+      <div class="divider"></div><div class="sm bold mt8">Total: ${fmtINR(ri+ci)}</div></div>`;
+  }).join('');
+  document.getElementById('tc-incentives').innerHTML=`
+    <div class="sec-t">Incentive Configuration</div>
+    <div class="g2 mb20">
+      <div class="card"><div style="font-weight:700;color:var(--blue);margin-bottom:14px">Sales Rep Incentives</div>
+        <div class="mb12"><span class="lbl">Per Active Dealer (₹)</span><input class="inp" type="number" value="${inc.perRepSale}" onchange="saveInc('perRepSale',+this.value)"><div class="xs mu mt4">Paid per dealer in active network</div></div>
+        <div><span class="lbl">Per New Dealer Onboarded (₹)</span><input class="inp" type="number" value="${inc.perRepNewDealer}" onchange="saveInc('perRepNewDealer',+this.value)"><div class="xs mu mt4">One-time bonus per new dealer locked in</div></div></div>
+      <div class="card"><div style="font-weight:700;color:var(--amber);margin-bottom:14px">Channel Partner Incentives</div>
+        <div class="mb12"><span class="lbl">Monthly Bonus per New Dealer (₹)</span><input class="inp" type="number" value="${inc.channelBonus}" onchange="saveInc('channelBonus',+this.value)"><div class="xs mu mt4">Paid to new channel partner monthly</div></div>
+        <div><span class="lbl">Incentive Period (Months)</span><input class="inp" type="number" value="${inc.channelPeriod}" onchange="saveInc('channelPeriod',+this.value)"><div class="xs mu mt4">Duration for which new dealer receives bonus</div></div></div>
+    </div>
+    <div class="card"><div class="bold mb14">Projected Payout — Current Numbers</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">${repCards}
+        <div class="card card-sm" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.3);display:flex;flex-direction:column;justify-content:center">
+          <div class="xs mu mb8">TOTAL PROJECTED PAYOUT</div>
+          <div style="font-size:1.5rem;font-weight:900;color:var(--blue)">${fmtINR(totalCost)}</div>
+        </div></div></div>`;
+}
+function saveInc(k,v){DATA.incentives[k]=v;persist();renderIncentives();}
+
+// ── P&L TAB ───────────────────────────────────────
+function renderFinancials(){
+  const f=DATA.financials;
+  document.getElementById('tc-financials').innerHTML=`
+    <div class="f jb aic mb20"><div class="sec-t" style="margin-bottom:0">P&amp;L Statement</div>
+      <button class="btn btn-sm btn-ob no-print" onclick="openModal('modal-print')">📄 Export / Print</button></div>
+    <div class="g2" style="align-items:start">
+      <div class="card"><div style="font-weight:700;color:var(--blue);margin-bottom:14px">Enter Financials</div>
+        <div class="mb12"><span class="lbl">Revenue (₹)</span><input class="inp" type="number" value="${f.revenue}" onchange="saveFin('revenue',+this.value)"></div>
+        <div class="mb12"><span class="lbl">Cost of Goods Sold / COGS (₹)</span><input class="inp" type="number" value="${f.cogs}" onchange="saveFin('cogs',+this.value)"></div>
+        <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Operating Expenses</div>
+        <div class="g2 mb12">
+          <div><span class="lbl">Salaries (₹)</span><input class="inp" type="number" value="${f.salaries}" onchange="saveFin('salaries',+this.value)"></div>
+          <div><span class="lbl">Marketing (₹)</span><input class="inp" type="number" value="${f.marketing}" onchange="saveFin('marketing',+this.value)"></div>
+          <div><span class="lbl">Logistics (₹)</span><input class="inp" type="number" value="${f.logistics}" onchange="saveFin('logistics',+this.value)"></div>
+          <div><span class="lbl">Other OpEx (₹)</span><input class="inp" type="number" value="${f.otherOpEx}" onchange="saveFin('otherOpEx',+this.value)"></div>
+        </div>
+        <div class="mb12"><span class="lbl">Other Income (₹)</span><input class="inp" type="number" value="${f.otherIncome}" onchange="saveFin('otherIncome',+this.value)"></div>
+        <div><span class="lbl">Tax Rate (%)</span><input class="inp" type="number" value="${f.taxRate}" onchange="saveFin('taxRate',+this.value)"></div>
+      </div>
+      <div class="card" id="pl-card"></div>
+    </div>`;
+  renderPLCard();
+}
+function renderPLCard(){
+  const f=DATA.financials, pl=calcPL(f);
+  const el=document.getElementById('pl-card'); if(!el)return;
+  el.innerHTML=`<div style="font-weight:700;color:var(--green);margin-bottom:14px">P&amp;L Summary</div>`
+    +plRow('Revenue',f.revenue)+plRow('Less: COGS',-(f.cogs||0),false,true)+plRow('Gross Profit',pl.gross,true)
+    +`<div class="xs mu mb8 mt4">Gross Margin: ${pl.grossPct}%</div>`
+    +plRow('Less: Salaries',-(f.salaries||0),false,true)+plRow('Less: Marketing',-(f.marketing||0),false,true)
+    +plRow('Less: Logistics',-(f.logistics||0),false,true)+plRow('Less: Other OpEx',-(f.otherOpEx||0),false,true)
+    +plRow('Operating Profit (EBIT)',pl.operating,true)+plRow('Add: Other Income',f.otherIncome||0,false,true)
+    +plRow('Net Profit Before Tax',pl.npbt,true)+plRow(`Less: Tax @ ${f.taxRate}%`,-(pl.tax||0),false,true)
+    +`<div class="pl-pat"><span style="font-size:.95rem;font-weight:900">Profit After Tax (PAT)</span>
+       <span style="font-size:1.35rem;font-weight:900;color:${pl.pat>=0?'var(--green)':'var(--red)'}">${fmtINR(pl.pat)}</span></div>`;
+}
+function saveFin(k,v){DATA.financials[k]=v;persist();renderPLCard();}
+function doPrint(){closeModal('modal-print');setTimeout(()=>window.print(),200);}
+
+// ── FORECAST TAB ──────────────────────────────────
+function renderForecast(){
+  const f=DATA.financials, proj=projectQ(f), m=Math.max(1,f.monthsElapsed||1), k=3/m;
+  const avgRev=Math.round(f.revenue/m);
+  const mc=proj.grossPct>=30?'Solid margin above 30%.':proj.grossPct>=20?'Moderate. Review COGS.':'Low margin — urgent attention needed.';
+  const mBtns=[1,2,3].map(n=>`<button class="month-btn ${f.monthsElapsed===n?'on':''}" onclick="setMonth(${n})">Month ${n}</button>`).join('');
+  document.getElementById('tc-forecast').innerHTML=`
+    <div class="sec-t">Q3 Profit Forecast</div>
+    <div class="card mb20 f aic jb" style="flex-wrap:wrap;gap:20px">
+      <div><span class="lbl">Months Elapsed in Current Quarter</span><div class="f g8p mt8">${mBtns}</div></div>
+      <div style="text-align:right"><div class="xs mu">PROJECTED PAT</div>
+        <div style="font-size:1.8rem;font-weight:900;color:${proj.pat>=0?'var(--green)':'var(--red)'}">${fmtINR(proj.pat)}</div></div>
+    </div>
+    <div class="g2" style="align-items:start">
+      <div class="card"><div style="font-weight:700;color:var(--amber);margin-bottom:4px">Projected Q3 P&amp;L</div>
+        <div class="xs mu mb14">Based on ${m} month${m!==1?'s':''} · ${k.toFixed(1)}× factor</div>
+        ${plRow('Projected Revenue',f.revenue*k)}${plRow('Less: Projected COGS',-(f.cogs*k),false,true)}${plRow('Projected Gross Profit',proj.gross,true)}
+        ${plRow('Less: Total OpEx',-proj.opEx,false,true)}${plRow('Projected EBIT',proj.operating,true)}
+        ${plRow('Add: Other Income',f.otherIncome,false,true)}${plRow('Projected NPBT',proj.npbt,true)}
+        ${plRow(`Less: Tax @ ${f.taxRate}%`,-proj.tax,false,true)}
+        <div class="pl-pat" style="border-top-color:var(--amber)"><span style="font-size:.95rem;font-weight:900">Projected PAT</span>
+          <span style="font-size:1.35rem;font-weight:900;color:${proj.pat>=0?'var(--green)':'var(--red)'}">${fmtINR(proj.pat)}</span></div>
+      </div>
+      <div class="card"><div style="font-weight:700;color:var(--purple);margin-bottom:14px">📊 How We Get There</div>
+        <div class="fx" style="border-color:var(--blue)"><div class="fx-h" style="color:var(--blue)">Revenue Trend</div><div class="fx-b">${fmtINR(f.revenue)} in ${m} month${m!==1?'s':''}, avg ${fmtINR(avgRev)}/month. Quarter projects to ${fmtINR(f.revenue*k)}.</div></div>
+        <div class="fx" style="border-color:var(--green)"><div class="fx-h" style="color:var(--green)">Gross Profit</div><div class="fx-b">Projected COGS of ${fmtINR(f.cogs*k)} gives gross profit of ${fmtINR(proj.gross)} (${proj.grossPct}% margin). ${mc}</div></div>
+        <div class="fx" style="border-color:var(--amber)"><div class="fx-h" style="color:var(--amber)">Operating Costs</div><div class="fx-b">Total OpEx projects to ${fmtINR(proj.opEx)}, leaving an operating profit of ${fmtINR(proj.operating)}.</div></div>
+        <div class="fx" style="border-color:var(--purple)"><div class="fx-h" style="color:var(--purple)">Final PAT</div><div class="fx-b">After other income of ${fmtINR(f.otherIncome)} and ${f.taxRate}% tax on ${fmtINR(proj.npbt)}, projected PAT is ${fmtINR(proj.pat)}.</div></div>
+      </div>
+    </div>`;
+}
+function setMonth(m){DATA.financials.monthsElapsed=m;persist();renderForecast();}
+</script>
+</body>
+</html>

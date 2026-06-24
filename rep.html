@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DealerPulse — Sales Rep</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%233B82F6'/></svg>">
+<link rel="stylesheet" href="assets/shared.css">
+<style>
+.rep-hdr{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:var(--hh);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+.rep-body{max-width:860px;margin:0 auto;padding:24px}
+.live-pill{display:inline-flex;align-items:center;gap:5px;font-size:.64rem;font-weight:700;color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);padding:2px 8px;border-radius:20px;margin-left:8px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.6s ease-in-out infinite}
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:14px}
+.loading-screen.hide{display:none}
+.spin-lg{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loading-screen">
+  <div class="spin-lg"></div>
+  <div class="mu sm">Loading your dashboard…</div>
+</div>
+
+  <header class="rep-hdr">
+    <div class="f aic g8p">
+      <div class="sb-dot" style="width:8px;height:8px;border-radius:50%;background:var(--blue);animation:pulse 2.5s ease-in-out infinite"></div>
+      <span style="font-size:.95rem;font-weight:900;letter-spacing:-.03em">DealerPulse</span>
+      <span class="live-pill" id="live-pill"><span class="live-dot"></span> Live</span>
+    </div>
+    <div class="f aic g12p">
+      <div class="upill"><div class="uav" id="rep-av">R</div><span id="rep-nm">—</span></div>
+      <a class="btn btn-sm" style="background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);text-decoration:none" href="index.html" onclick="doLogout(event)">Logout</a>
+    </div>
+  </header>
+  <div class="rep-body" id="rep-body"></div>
+  <footer class="site-footer"><span>DealerPulse v3.0 · Field Sales Tracker · Synced live via cloud</span><span>&copy; 2026</span></footer>
+  <div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/shared.js"></script>
+<script>
+let DATA = null, REP_ID = '', REP_AUTH = {};
+let UNSUB_SALES = null, _saveTimer = null;
+
+function doLogout(e){e.preventDefault();if(UNSUB_SALES)UNSUB_SALES();clearAuth();window.location.href='index.html';}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = getAuth();
+  if(!auth || auth.role !== 'rep'){ window.location.href='index.html'; return; }
+  if(!FIREBASE_CONFIGURED){
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Firebase not configured</div><div class="sm mu">Paste your Firebase project config into assets/shared.js.</div></div>';
+    return;
+  }
+  REP_AUTH = auth; REP_ID = auth.repId;
+  document.getElementById('rep-av').textContent = auth.name[0];
+  document.getElementById('rep-nm').textContent = auth.name;
+
+  try{
+    DATA = await fetchSalesData();
+  } catch(e){
+    console.error(e);
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Connection error</div><div class="sm mu">Could not reach the cloud database. Check your internet connection.</div></div>';
+    return;
+  }
+  document.getElementById('loading-screen').classList.add('hide');
+  renderRep();
+
+  // Live sync: re-render whenever the manager (or this rep on another device) changes data
+  UNSUB_SALES = listenSalesData(remote=>{
+    DATA = remote;
+    if(!showExpForm) renderRep();
+  });
+});
+
+function persist(){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async ()=>{
+    try{ await saveSalesData(DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
+  }, 250);
+}
+function getRep(){ return DATA.reps.find(r=>r.id===REP_ID); }
+function updRep(fn){ DATA.reps = DATA.reps.map(r=>r.id===REP_ID?fn({...r}):r); persist(); }
+
+function renderRep(){
+  const rep = getRep();
+  if(!rep){ document.getElementById('rep-body').innerHTML='<p class="mu" style="padding:40px;text-align:center">Rep profile not found. Please <a href="index.html">login again</a> or contact your manager.</p>'; return; }
+  const ranked = [...DATA.reps].sort((a,b)=>score(b)-score(a));
+  const rank = ranked.findIndex(r=>r.id===REP_ID)+1;
+  const inc = DATA.incentives;
+  const myInc = rep.current.dealers*inc.perRepSale + rep.current.newDealers*inc.perRepNewDealer;
+  const dp = pct(rep.current.dealers,rep.targets.dealers);
+  const np = pct(rep.current.newDealers,rep.targets.newDealers);
+  const sc = score(rep);
+
+  const expRows = rep.expenses.map(ex=>`
+    <div class="er">
+      <div><div class="sm">${ex.desc}</div><div class="xs mu mt4">${ex.date}</div></div>
+      <div class="f aic g8p">
+        <span class="bold">${fmtINR(ex.amount)}</span>
+        <span class="badge ${ex.status==='approved'?'b-green':ex.status==='rejected'?'b-red':'b-amber'}">${ex.status}</span>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('rep-body').innerHTML=`
+    <div class="card mb16 f jb aic" style="flex-wrap:wrap;gap:14px">
+      <div>
+        <div style="font-size:1.25rem;font-weight:900;letter-spacing:-.02em">${rep.name}</div>
+        <div class="xs mu mt4">${rep.territory} Territory &nbsp;·&nbsp; Updated ${rep.current.updatedAt}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="xs mu" style="text-transform:uppercase;letter-spacing:.08em">Team Rank</div>
+        <div style="font-size:2.2rem;font-weight:900;line-height:1;color:${rank===1?'var(--amber)':rank===2?'var(--blue)':'var(--muted)'}">#${rank}</div>
+        <div class="xs mu">of ${DATA.reps.length} reps</div>
+      </div>
+    </div>
+
+    <div class="g4 mb16">
+      ${[{l:'Dealers',v:`${rep.current.dealers}/${rep.targets.dealers}`,s:`${dp}% of target`,c:'var(--blue)'},
+         {l:'New Dealers',v:`${rep.current.newDealers}/${rep.targets.newDealers}`,s:`${np}% of target`,c:'var(--amber)'},
+         {l:'Score',v:`${sc}%`,s:'Composite',c:'var(--green)'},
+         {l:'Incentive',v:fmtINR(myInc),s:'Estimated',c:'var(--purple)'}]
+        .map(s=>`<div class="card card-sm" style="text-align:center"><span class="lbl">${s.l}</span><div style="font-size:1.1rem;font-weight:800;color:${s.c};margin:4px 0">${s.v}</div><div class="xs mu">${s.s}</div></div>`).join('')}
+    </div>
+
+    <div class="card mb16">
+      <div class="bold mb14">Target Progress</div>
+      ${[['Dealers',dp,rep.current.dealers,rep.targets.dealers,'var(--blue)'],
+         ['New Dealers',np,rep.current.newDealers,rep.targets.newDealers,'var(--amber)']].map(([lbl,p,cur,tgt,col])=>`
+        <div class="mb16">
+          <div class="f jb mb8"><span class="sm">${lbl} <span style="color:${col};font-weight:600">${cur} / ${tgt}</span></span>
+            <span class="xs" style="color:${p>=80?'var(--green)':'var(--muted)'};font-weight:600">${p}%</span></div>
+          <div class="bar-wrap lg"><div class="bar" style="width:${p}%;background:${p>=80?'var(--green)':col}"></div></div>
+        </div>`).join('')}
+      <div style="background:var(--bg);padding:10px;border-radius:8px;font-size:.78rem;color:var(--muted)">
+        📍 Current Location: <span style="color:var(--text);font-weight:600">${rep.current.location}</span>
+      </div>
+    </div>
+
+    <div class="card mb16">
+      <div class="bold mb14">Update My Status</div>
+      <div class="g2 mb12">
+        <div><span class="lbl">Location / Market</span><input class="inp" id="uf-loc" placeholder="${rep.current.location}"></div>
+        <div><span class="lbl">Total Active Dealers</span><input class="inp" type="number" id="uf-d" placeholder="${rep.current.dealers}"></div>
+        <div><span class="lbl">New Dealers This Period</span><input class="inp" type="number" id="uf-nd" placeholder="${rep.current.newDealers}"></div>
+        <div><span class="lbl">Date</span><input class="inp" value="${TODAY}" readonly></div>
+      </div>
+      <textarea class="inp mb12" rows="2" id="uf-notes" placeholder="Field notes — market observations, competitor activity…"></textarea>
+      <button class="btn btn-sm" style="background:var(--blue);color:#fff;padding:9px 20px" onclick="updateStatus()">Update Status</button>
+    </div>
+
+    <div class="card">
+      <div class="f jb aic mb16">
+        <div class="bold">Expense Claims</div>
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff" onclick="toggleExpForm()">+ Add Expense</button>
+      </div>
+      <div id="exp-form-area"></div>
+      ${rep.expenses.length===0?'<p class="xs mu" style="text-align:center;padding:16px">No expenses submitted yet.</p>':expRows}
+    </div>`;
+}
+
+let showExpForm = false;
+function toggleExpForm(){
+  showExpForm = !showExpForm;
+  const el=document.getElementById('exp-form-area'); if(!el)return;
+  el.innerHTML = showExpForm?`
+    <div class="ep mb16">
+      <div class="g2 mb12">
+        <div style="grid-column:1/3"><span class="lbl">Description</span><input class="inp" id="ne-desc" placeholder="e.g. Travel to Pataudi"></div>
+        <div><span class="lbl">Amount (₹)</span><input class="inp" type="number" id="ne-amt" placeholder="0"></div>
+        <div><span class="lbl">Date</span><input class="inp" type="date" id="ne-date" value="${TODAY}"></div>
+      </div>
+      <div class="f g8p">
+        <button class="btn btn-sm btn-g" onclick="submitExp()">Submit Claim</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleExpForm()">Cancel</button>
+      </div>
+    </div>`:'';
+}
+function submitExp(){
+  const desc=(document.getElementById('ne-desc')||{}).value?.trim();
+  const amt=+(document.getElementById('ne-amt')||{}).value;
+  const date=(document.getElementById('ne-date')||{}).value||TODAY;
+  if(!desc||!amt){toast('Please fill in description and amount.','⚠️');return;}
+  updRep(r=>({...r,expenses:[...r.expenses,{id:uid(),desc,amount:amt,date,status:'pending'}]}));
+  showExpForm=false;
+  renderRep(); toast('Expense claim submitted!');
+}
+function updateStatus(){
+  const loc=(document.getElementById('uf-loc')||{}).value?.trim();
+  const d=(document.getElementById('uf-d')||{}).value;
+  const nd=(document.getElementById('uf-nd')||{}).value;
+  updRep(r=>({...r,current:{...r.current,location:loc||r.current.location,
+    dealers:d!==''?+d:r.current.dealers, newDealers:nd!==''?+nd:r.current.newDealers, updatedAt:TODAY}}));
+  renderRep(); toast('Status updated successfully!');
+}
+</script>
+</body>
+</html>

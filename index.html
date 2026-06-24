@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DealerPulse — Login</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%233B82F6'/></svg>">
+<link rel="stylesheet" href="assets/shared.css">
+<style>
+#pg{min-height:100vh;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.glow{position:absolute;inset:0;background:radial-gradient(ellipse 100% 60% at 50% -5%,rgba(59,130,246,.18),transparent 65%);pointer-events:none}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(30,58,95,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(30,58,95,.22) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+.box{position:relative;z-index:1;width:100%;max-width:500px;padding:24px}
+.ls{display:none;animation:fadeIn .3s ease}.ls.active{display:block}
+.brand{text-align:center;margin-bottom:32px}
+.brand-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px}
+.bdot{width:12px;height:12px;border-radius:50%;background:var(--blue);animation:pulse 2.5s ease-in-out infinite}
+.bnm{font-size:2rem;font-weight:900;letter-spacing:-.04em}
+.btag{font-size:.72rem;color:var(--muted);letter-spacing:.04em}
+.role-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;text-align:center;margin-bottom:14px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.rc{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:26px 18px 22px;text-align:center;cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.rc:hover{transform:translateY(-3px)}.rc.mgr:hover{border-color:var(--amber);box-shadow:0 12px 32px rgba(245,158,11,.15);background:rgba(245,158,11,.04)}.rc.rep:hover{border-color:var(--blue);box-shadow:0 12px 32px rgba(59,130,246,.15);background:rgba(59,130,246,.04)}
+.rc-ic{font-size:2.2rem;display:block;margin-bottom:12px}.rc-title{font-size:.95rem;font-weight:800;margin-bottom:6px}.rc-desc{font-size:.72rem;color:var(--muted);line-height:1.55}
+.rc-arr{position:absolute;bottom:12px;right:14px;font-size:.85rem;opacity:0;transition:all .2s;color:var(--muted)}.rc:hover .rc-arr{opacity:1;transform:translateX(3px)}
+.fc{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:28px}
+.rbadge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 10px;border-radius:20px;margin-bottom:12px}
+.rbadge.amber{background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.rbadge.blue{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3)}
+.rbadge.purple{background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.3)}
+.ftitle{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;margin-bottom:4px}
+.fsub{font-size:.8rem;color:var(--muted);margin-bottom:18px}
+.hint{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 14px;font-size:.75rem;color:var(--muted);margin-bottom:16px;line-height:1.7}
+.hint code{background:rgba(59,130,246,.15);color:var(--blue);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:.75rem}
+.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#F87171;padding:10px 14px;font-size:.8rem;margin-bottom:12px;display:none}.err.show{display:block}
+.fld{margin-bottom:12px}.fld label{display:block;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.fld input,.fld select{width:100%;padding:11px 14px;background:#070F1E;border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+.fld input:focus,.fld select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.fld input::placeholder{color:var(--muted)}.fld select{appearance:none;-webkit-appearance:none}
+.pw-w{position:relative}.pw-w input{padding-right:44px}
+.pw-t{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:.95rem;padding:4px;line-height:1;font-family:inherit}
+.lg-foot{text-align:center;font-size:.68rem;color:var(--muted);margin-top:14px}
+.lg-foot a{color:var(--muted);text-decoration:underline;cursor:pointer}.lg-foot a:hover{color:var(--text)}
+.req-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pend-wrap{text-align:center;padding:6px 0}
+.pend-ic{font-size:3rem;margin-bottom:14px}
+.pend-title{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+.pend-sub{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:18px}
+.pend-meta{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;text-align:left;margin-bottom:18px}
+.pend-row{display:flex;justify-content:space-between;font-size:.82rem;padding:4px 0}.pend-row span:first-child{color:var(--muted)}.pend-row span:last-child{font-weight:600}
+.scs-wrap{text-align:center;padding:6px 0}
+.scs-circle{width:72px;height:72px;border-radius:50%;background:rgba(16,185,129,.15);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 18px;animation:popIn .45s ease}
+.btn-launch{width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}.btn-launch:hover{background:var(--green-d);transform:translateY(-1px)}
+.btn[disabled]{opacity:.6;cursor:not-allowed;transform:none!important}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:480px){.role-grid,.req-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="pg">
+  <div class="glow"></div><div class="grid"></div>
+  <div class="box">
+
+    <!-- SCREEN 1: Role Selection -->
+    <div class="ls active" id="ls-roles">
+      <div class="brand">
+        <div class="brand-row"><div class="bdot"></div><span class="bnm">DealerPulse</span></div>
+        <div class="btag">Field Sales Management Platform</div>
+      </div>
+      <div class="role-lbl">Select your role to continue</div>
+      <div class="role-grid">
+        <div class="rc mgr" onclick="goLS('ls-mgr')">
+          <span class="rc-ic">🏢</span>
+          <div class="rc-title">Manager</div>
+          <div class="rc-desc">Set targets, manage incentives &amp; view P&amp;L</div>
+          <span class="rc-arr">→</span>
+        </div>
+        <div class="rc rep" onclick="goLS('ls-rep')">
+          <span class="rc-ic">👤</span>
+          <div class="rc-title">Sales Rep</div>
+          <div class="rc-desc">Track targets, update status &amp; file expenses</div>
+          <span class="rc-arr">→</span>
+        </div>
+      </div>
+      <div class="lg-foot">
+        DealerPulse v3.0 &nbsp;·&nbsp; Lithium Sales Division
+        &nbsp;&nbsp;<a onclick="goLS('ls-request')">New user? Request Access</a>
+        &nbsp;&nbsp;<a href="admin.html">Admin</a>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: Manager Login -->
+    <div class="ls" id="ls-mgr">
+      <button class="btn-back" onclick="goLS('ls-roles')">← Back</button>
+      <div class="fc">
+        <div class="rbadge amber">🏢 Manager Login</div>
+        <div class="ftitle">Welcome back</div>
+        <div class="fsub">Sign in with your manager credentials.</div>
+        <div class="hint">Demo &nbsp;·&nbsp; Username: <code>manager</code> &nbsp;·&nbsp; Password: <code>Admin@123</code></div>
+        <div class="err" id="mgr-err"></div>
+        <div class="fld"><label>Username</label><input type="text" id="mgr-user" placeholder="Enter your username" autocomplete="off"></div>
+        <div class="fld"><label>Password</label>
+          <div class="pw-w"><input type="password" id="mgr-pass" placeholder="Enter your password"><button class="pw-t" onclick="tpw('mgr-pass',this)">👁</button></div>
+        </div>
+        <button class="btn btn-prim amber" id="mgr-btn" onclick="doLogin('manager','mgr-user','mgr-pass','mgr-err','mgr-btn')" style="margin-top:4px">Login as Manager</button>
+      </div>
+      <div class="lg-foot" style="margin-top:14px"><a onclick="goLS('ls-request')">New user? Request Access</a></div>
+    </div>
+
+    <!-- SCREEN 3: Sales Rep Login -->
+    <div class="ls" id="ls-rep">
+      <button class="btn-back" onclick="goLS('ls-roles')">← Back</button>
+      <div class="fc">
+        <div class="rbadge blue">👤 Sales Rep Login</div>
+        <div class="ftitle">Welcome back</div>
+        <div class="fsub">Sign in with your assigned username and password.</div>
+        <div class="hint">Example &nbsp;·&nbsp; Username: <code>ravi.sharma</code> &nbsp;·&nbsp; Password: <code>Sales@123</code></div>
+        <div class="err" id="rep-err"></div>
+        <div class="fld"><label>Username</label><input type="text" id="rep-user" placeholder="Enter your username" autocomplete="off"></div>
+        <div class="fld"><label>Password</label>
+          <div class="pw-w"><input type="password" id="rep-pass" placeholder="Enter your password"><button class="pw-t" onclick="tpw('rep-pass',this)">👁</button></div>
+        </div>
+        <button class="btn btn-prim" id="rep-btn" onclick="doLogin('rep','rep-user','rep-pass','rep-err','rep-btn')" style="margin-top:4px">Login as Sales Rep</button>
+      </div>
+      <div class="lg-foot" style="margin-top:14px"><a onclick="goLS('ls-request')">New user? Request Access</a></div>
+    </div>
+
+    <!-- SCREEN 4: Request Access -->
+    <div class="ls" id="ls-request">
+      <button class="btn-back" onclick="goLS('ls-roles')">← Back</button>
+      <div class="fc">
+        <div class="rbadge purple">🔒 Request Access</div>
+        <div class="ftitle">Create your account</div>
+        <div class="fsub">Fill in your details. Your manager will approve your request before you can log in.</div>
+        <div class="err" id="req-err"></div>
+        <div class="req-grid">
+          <div class="fld" style="grid-column:1/3"><label>Full Name</label><input type="text" id="req-name" placeholder="e.g. Sunita Verma"></div>
+          <div class="fld">
+            <label>Role</label>
+            <select id="req-role" onchange="toggleTerrField()">
+              <option value="">Select role</option>
+              <option value="rep">Sales Rep</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
+          <div class="fld" id="req-terr-wrap">
+            <label>Territory</label>
+            <input type="text" id="req-terr" placeholder="e.g. Rewari">
+          </div>
+          <div class="fld"><label>Username</label><input type="text" id="req-uname" placeholder="e.g. sunita.verma" autocomplete="off"></div>
+          <div class="fld"><label>Password</label><input type="password" id="req-pass1" placeholder="Min 6 characters"></div>
+          <div class="fld" style="grid-column:1/3"><label>Confirm Password</label><input type="password" id="req-pass2" placeholder="Repeat password"></div>
+        </div>
+        <button class="btn btn-prim" id="req-btn" style="background:var(--purple)" onclick="submitRequest()">Submit Access Request</button>
+      </div>
+      <div class="lg-foot" style="margin-top:14px">Already have an account? <a onclick="goLS('ls-roles')">Login</a></div>
+    </div>
+
+    <!-- SCREEN 5: Pending Approval -->
+    <div class="ls" id="ls-pending">
+      <div class="pend-wrap">
+        <div class="pend-ic">⏳</div>
+        <div class="pend-title">Request Submitted!</div>
+        <div class="pend-sub">Your access request has been sent to the admin for approval. You will be able to log in once it is approved.</div>
+        <div class="pend-meta">
+          <div class="pend-row"><span>Name</span><span id="pend-name">—</span></div>
+          <div class="pend-row"><span>Username</span><span id="pend-uname">—</span></div>
+          <div class="pend-row"><span>Role</span><span id="pend-role">—</span></div>
+          <div class="pend-row"><span>Status</span><span class="badge b-amber">Pending Approval</span></div>
+          <div class="pend-row"><span>Submitted</span><span id="pend-time">—</span></div>
+        </div>
+        <div class="info-strip" style="margin-bottom:16px">🔒 The admin will review your request in the Admin Panel and approve or reject it. Try logging in again later.</div>
+        <button class="btn btn-prim" style="background:var(--blue)" onclick="goLS('ls-roles')">← Back to Login</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 6: Rejected -->
+    <div class="ls" id="ls-rejected">
+      <div class="pend-wrap">
+        <div class="pend-ic">❌</div>
+        <div class="pend-title">Access Denied</div>
+        <div class="pend-sub" id="rej-msg">Your access request was rejected. Please contact your manager for more information.</div>
+        <div class="pend-meta">
+          <div class="pend-row"><span>Username</span><span id="rej-uname">—</span></div>
+          <div class="pend-row"><span>Status</span><span class="badge b-red">Rejected</span></div>
+          <div class="pend-row"><span>Reason</span><span id="rej-note">—</span></div>
+        </div>
+        <button class="btn btn-prim" style="background:var(--blue)" onclick="goLS('ls-roles')">← Back to Login</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 7: Login Success -->
+    <div class="ls" id="ls-success">
+      <div class="scs-wrap">
+        <div class="scs-circle">✓</div>
+        <div style="font-size:1.35rem;font-weight:900;margin-bottom:5px" id="scs-name">—</div>
+        <div class="fsub" id="scs-sub">—</div>
+        <div class="pend-meta">
+          <div class="pend-row"><span>Logged in as</span><span id="scs-role">—</span></div>
+          <div class="pend-row"><span>Login count</span><span id="scs-count">—</span></div>
+          <div class="pend-row"><span>Platform</span><span>DealerPulse v3.0 (Cloud)</span></div>
+        </div>
+        <button class="btn-launch" id="launch-btn">Enter Dashboard →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/shared.js"></script>
+<script>
+// ── ROUTING ───────────────────────────────────────
+function goLS(id){
+  document.querySelectorAll('.ls').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('show'));
+}
+function tpw(id,btn){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';}
+function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.classList.add('show');}
+function toggleTerrField(){
+  const role=document.getElementById('req-role').value;
+  document.getElementById('req-terr-wrap').style.display=role==='rep'?'block':'none';
+}
+function setBusy(btnId,busy,label){
+  const b=document.getElementById(btnId);if(!b)return;
+  b.disabled=busy;
+  if(busy){ b.dataset.label=b.innerHTML; b.innerHTML='<span class="spin"></span> '+(label||'Please wait…'); }
+  else if(b.dataset.label){ b.innerHTML=b.dataset.label; }
+}
+
+// ── LOGIN ──────────────────────────────────────────
+async function doLogin(expectedRole, userField, passField, errId, btnId){
+  const username=document.getElementById(userField).value.trim();
+  const password=document.getElementById(passField).value;
+  if(!username){showErr(errId,'Please enter your username.');return;}
+  if(!password){showErr(errId,'Please enter your password.');return;}
+  if(!FIREBASE_CONFIGURED){showErr(errId,'Firebase is not configured yet. See assets/shared.js.');return;}
+
+  setBusy(btnId,true,'Checking…');
+  try{
+    const user = await fetchUserByUsername(username);
+    if(!user){
+      await addHistoryEntry({userId:null,name:'Unknown',username,role:expectedRole,status:'failed',reason:'Username not found'});
+      showErr(errId,'Username not found. Please request access or check spelling.');return;
+    }
+    if(user.role!==expectedRole){
+      await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'failed',reason:'Wrong role tab selected'});
+      showErr(errId,'This account is registered as a '+user.role+'. Please select the correct role.');return;
+    }
+    if(user.status==='pending'){
+      await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'blocked',reason:'Account pending approval'});
+      showPendingScreen(user);return;
+    }
+    if(user.status==='rejected'){
+      await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'blocked',reason:'Account rejected'});
+      showRejectedScreen(user);return;
+    }
+    if(user.password!==password){
+      await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'failed',reason:'Incorrect password'});
+      showErr(errId,'Incorrect password. Please try again.');return;
+    }
+    // Success
+    const newCount=(user.loginCount||0)+1;
+    await updateUserDoc(user.id,{lastLoginAt:new Date().toISOString(),loginCount:newCount});
+    await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'success',reason:''});
+    setAuth({role:user.role,repId:user.repId,name:user.name,userId:user.id});
+    showSuccessScreen({...user,loginCount:newCount});
+  } catch(e){
+    console.error(e);
+    showErr(errId,'Connection error. Check your internet connection and Firebase setup.');
+  } finally {
+    setBusy(btnId,false);
+  }
+}
+
+function showSuccessScreen(user){
+  document.getElementById('scs-name').textContent='Welcome, '+user.name+'!';
+  document.getElementById('scs-sub').textContent=(user.territory||'Full Dashboard Access')+' · Logged in successfully';
+  document.getElementById('scs-role').textContent=user.role==='manager'?'🏢 Manager':'👤 Sales Rep';
+  document.getElementById('scs-count').textContent='Login #'+(user.loginCount||1);
+  const dest=user.role==='manager'?'manager.html':'rep.html';
+  document.getElementById('launch-btn').onclick=()=>window.location.href=dest;
+  goLS('ls-success');
+  setTimeout(()=>window.location.href=dest,1500);
+}
+function showPendingScreen(user){
+  document.getElementById('pend-name').textContent=user.name;
+  document.getElementById('pend-uname').textContent=user.username;
+  document.getElementById('pend-role').textContent=user.role==='manager'?'Manager':'Sales Rep';
+  document.getElementById('pend-time').textContent=fmtDT(user.createdAt);
+  goLS('ls-pending');
+}
+function showRejectedScreen(user){
+  document.getElementById('rej-uname').textContent=user.username;
+  document.getElementById('rej-note').textContent=user.rejectionNote||'No reason provided.';
+  goLS('ls-rejected');
+}
+
+// ── REQUEST ACCESS ─────────────────────────────────
+async function submitRequest(){
+  const name=document.getElementById('req-name').value.trim();
+  const role=document.getElementById('req-role').value;
+  const terr=document.getElementById('req-terr').value.trim();
+  const uname=document.getElementById('req-uname').value.trim().toLowerCase();
+  const p1=document.getElementById('req-pass1').value;
+  const p2=document.getElementById('req-pass2').value;
+
+  if(!name){showErr('req-err','Please enter your full name.');return;}
+  if(!role){showErr('req-err','Please select your role.');return;}
+  if(role==='rep'&&!terr){showErr('req-err','Please enter your territory.');return;}
+  if(!uname||uname.length<3){showErr('req-err','Username must be at least 3 characters.');return;}
+  if(!/^[a-z0-9._-]+$/.test(uname)){showErr('req-err','Username may only contain letters, numbers, dots, hyphens and underscores.');return;}
+  if(!p1||p1.length<6){showErr('req-err','Password must be at least 6 characters.');return;}
+  if(p1!==p2){showErr('req-err','Passwords do not match.');return;}
+  if(!FIREBASE_CONFIGURED){showErr('req-err','Firebase is not configured yet. See assets/shared.js.');return;}
+
+  setBusy('req-btn',true,'Submitting…');
+  try{
+    const existing=await fetchUserByUsername(uname);
+    if(existing){showErr('req-err','Username already taken. Please choose another.');return;}
+
+    const newUser={name,username:uname,password:p1,role,repId:null,territory:role==='rep'?terr:null,
+      status:'pending',createdAt:new Date().toISOString(),approvedAt:null,approvedBy:null,
+      rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0};
+    const newId=await createUser(newUser);
+    await addHistoryEntry({userId:newId,name,username:uname,role,status:'pending',reason:'New access request submitted'});
+
+    document.getElementById('pend-name').textContent=name;
+    document.getElementById('pend-uname').textContent=uname;
+    document.getElementById('pend-role').textContent=role==='manager'?'Manager':'Sales Rep';
+    document.getElementById('pend-time').textContent=fmtDT(newUser.createdAt);
+    goLS('ls-pending');
+    toast(name+"'s request submitted!",'📨');
+  } catch(e){
+    console.error(e);
+    showErr('req-err','Connection error. Check your internet connection and Firebase setup.');
+  } finally {
+    setBusy('req-btn',false);
+  }
+}
+
+// ── INIT ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  const auth=getAuth();
+  if(auth?.role==='manager'){window.location.href='manager.html';return;}
+  if(auth?.role==='rep'){window.location.href='rep.html';return;}
+  toggleTerrField();
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const active=document.querySelector('.ls.active')?.id;
+  if(active==='ls-mgr') doLogin('manager','mgr-user','mgr-pass','mgr-err','mgr-btn');
+  else if(active==='ls-rep') doLogin('rep','rep-user','rep-pass','rep-err','rep-btn');
+  else if(active==='ls-request') submitRequest();
+});
+</script>
+</body>
+</html>

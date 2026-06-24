@@ -1,0 +1,44 @@
+// ════════════════════════════════════════════════════
+// DealerPulse — Firestore Security Rules
+// Paste this into: Firebase Console → Firestore Database → Rules tab
+// Then click "Publish"
+// ════════════════════════════════════════════════════
+//
+// ⚠️ IMPORTANT — READ BEFORE PUBLISHING:
+// These rules allow anyone who has your site's URL to read and write
+// to your database. This is intentional and necessary because DealerPulse
+// uses its own custom username/password system instead of Firebase
+// Authentication, so there's no "signed-in user" for Firestore to check
+// against.
+//
+// This is fine for an internal team tool with low-sensitivity data
+// (sales targets, expense claims, dealer counts). It is NOT suitable
+// for storing anything truly sensitive. Passwords here are stored in
+// plain text — please use unique passwords for this tool, not ones
+// reused from email/banking etc.
+//
+// If you later want stronger security (hashed passwords, real user
+// authentication, per-rep write restrictions), that requires adding
+// Firebase Authentication + Cloud Functions — ask if you want this built.
+// ════════════════════════════════════════════════════
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User accounts (login credentials, approval status)
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Login history / audit log
+    match /history/{entryId} {
+      allow read, write: if true;
+    }
+
+    // Sales data: reps, targets, incentives, financials
+    match /salesData/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

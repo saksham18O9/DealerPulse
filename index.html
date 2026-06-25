@@ -135,6 +135,12 @@
         <div class="err" id="req-err"></div>
         <div class="req-grid">
           <div class="fld" style="grid-column:1/3"><label>Full Name</label><input type="text" id="req-name" placeholder="e.g. Sunita Verma"></div>
+          <div class="fld" style="grid-column:1/3">
+            <label>Organization</label>
+            <select id="req-org" onchange="onOrgChange()">
+              <option value="">Select organization</option>
+            </select>
+          </div>
           <div class="fld">
             <label>Role</label>
             <select id="req-role" onchange="toggleTerrField()">
@@ -146,6 +152,11 @@
           <div class="fld" id="req-terr-wrap">
             <label>Territory</label>
             <input type="text" id="req-terr" placeholder="e.g. Rewari">
+          </div>
+          <div class="fld" id="req-mgr-wrap" style="grid-column:1/3;display:none">
+            <label>Reporting Manager</label>
+            <select id="req-mgr"><option value="">Select your manager</option></select>
+            <div class="xs mu mt4" id="req-mgr-hint"></div>
           </div>
           <div class="fld"><label>Username</label><input type="text" id="req-uname" placeholder="e.g. sunita.verma" autocomplete="off"></div>
           <div class="fld"><label>Password</label><input type="password" id="req-pass1" placeholder="Min 6 characters"></div>
@@ -223,6 +234,30 @@ function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e
 function toggleTerrField(){
   const role=document.getElementById('req-role').value;
   document.getElementById('req-terr-wrap').style.display=role==='rep'?'block':'none';
+  document.getElementById('req-mgr-wrap').style.display=role==='rep'?'block':'none';
+  if(role==='rep') populateManagerDropdown();
+}
+async function onOrgChange(){
+  const role=document.getElementById('req-role').value;
+  if(role==='rep') await populateManagerDropdown();
+}
+async function populateManagerDropdown(){
+  const orgId=document.getElementById('req-org').value;
+  const sel=document.getElementById('req-mgr');
+  const hint=document.getElementById('req-mgr-hint');
+  sel.innerHTML='<option value="">Select your manager</option>';
+  hint.textContent='';
+  if(!orgId||!FIREBASE_CONFIGURED)return;
+  try{
+    const mgrs=await fetchManagersInOrg(orgId);
+    if(mgrs.length===0){
+      hint.textContent='⚠️ No approved managers in this organization yet. Ask your manager to request access first.';
+      return;
+    }
+    mgrs.forEach(m=>{
+      const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);
+    });
+  }catch(e){console.error(e);}
 }
 function setBusy(btnId,busy,label){
   const b=document.getElementById(btnId);if(!b)return;
@@ -266,7 +301,7 @@ async function doLogin(expectedRole, userField, passField, errId, btnId){
     const newCount=(user.loginCount||0)+1;
     await updateUserDoc(user.id,{lastLoginAt:new Date().toISOString(),loginCount:newCount});
     await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'success',reason:''});
-    setAuth({role:user.role,repId:user.repId,name:user.name,userId:user.id});
+    setAuth({role:user.role,repId:user.repId,name:user.name,userId:user.id,orgId:user.orgId,orgName:user.orgName,managerId:user.managerId});
     showSuccessScreen({...user,loginCount:newCount});
   } catch(e){
     console.error(e);
@@ -302,15 +337,19 @@ function showRejectedScreen(user){
 // ── REQUEST ACCESS ─────────────────────────────────
 async function submitRequest(){
   const name=document.getElementById('req-name').value.trim();
+  const orgId=document.getElementById('req-org').value;
   const role=document.getElementById('req-role').value;
   const terr=document.getElementById('req-terr').value.trim();
+  const reportsTo=document.getElementById('req-mgr').value;
   const uname=document.getElementById('req-uname').value.trim().toLowerCase();
   const p1=document.getElementById('req-pass1').value;
   const p2=document.getElementById('req-pass2').value;
 
   if(!name){showErr('req-err','Please enter your full name.');return;}
+  if(!orgId){showErr('req-err','Please select your organization.');return;}
   if(!role){showErr('req-err','Please select your role.');return;}
   if(role==='rep'&&!terr){showErr('req-err','Please enter your territory.');return;}
+  if(role==='rep'&&!reportsTo){showErr('req-err','Please select your reporting manager.');return;}
   if(!uname||uname.length<3){showErr('req-err','Username must be at least 3 characters.');return;}
   if(!/^[a-z0-9._-]+$/.test(uname)){showErr('req-err','Username may only contain letters, numbers, dots, hyphens and underscores.');return;}
   if(!p1||p1.length<6){showErr('req-err','Password must be at least 6 characters.');return;}
@@ -322,11 +361,15 @@ async function submitRequest(){
     const existing=await fetchUserByUsername(uname);
     if(existing){showErr('req-err','Username already taken. Please choose another.');return;}
 
+    const orgName=document.getElementById('req-org').selectedOptions[0]?.textContent||'';
+    const mgrName=role==='rep'?(document.getElementById('req-mgr').selectedOptions[0]?.textContent||''):null;
+
     const newUser={name,username:uname,password:p1,role,repId:null,territory:role==='rep'?terr:null,
+      orgId, orgName, managerId: role==='rep'?reportsTo:null, managerName: mgrName,
       status:'pending',createdAt:new Date().toISOString(),approvedAt:null,approvedBy:null,
       rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0};
     const newId=await createUser(newUser);
-    await addHistoryEntry({userId:newId,name,username:uname,role,status:'pending',reason:'New access request submitted'});
+    await addHistoryEntry({userId:newId,name,username:uname,role,status:'pending',reason:'New access request submitted ('+orgName+')'});
 
     document.getElementById('pend-name').textContent=name;
     document.getElementById('pend-uname').textContent=uname;
@@ -348,6 +391,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(auth?.role==='manager'){window.location.href='manager.html';return;}
   if(auth?.role==='rep'){window.location.href='rep.html';return;}
   toggleTerrField();
+  if(FIREBASE_CONFIGURED){
+    fetchOrgs().then(orgs=>{
+      const sel=document.getElementById('req-org');
+      orgs.forEach(o=>{
+        const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;sel.appendChild(opt);
+      });
+      if(orgs.length===0){
+        showErr('req-err','No organizations have been set up yet. Ask your admin to create one first.');
+      }
+    }).catch(e=>console.error(e));
+  }
 });
 
 document.addEventListener('keydown',e=>{

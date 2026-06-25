@@ -36,7 +36,27 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Sales data: reps, targets, incentives, financials
+    // Organizations (admin-managed list)
+    match /organizations/{orgId} {
+      allow read, write: if true;
+    }
+
+    // Per-manager teams: reps, targets, incentives
+    match /teams/{managerId} {
+      allow read, write: if true;
+    }
+
+    // Shared org-wide P&L
+    match /orgFinancials/{orgId} {
+      allow read, write: if true;
+    }
+
+    // Cross-manager team-sharing requests
+    match /shareRequests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // Legacy single-tenant data (kept for backward compatibility, unused going forward)
     match /salesData/{docId} {
       allow read, write: if true;
     }

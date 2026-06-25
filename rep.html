@@ -43,10 +43,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="assets/shared.js"></script>
 <script>
-let DATA = null, REP_ID = '', REP_AUTH = {};
-let UNSUB_SALES = null, _saveTimer = null;
+let DATA = null, REP_ID = '', REP_AUTH = {}, MANAGER_ID = '';
+let UNSUB_TEAM = null, _saveTimer = null;
 
-function doLogout(e){e.preventDefault();if(UNSUB_SALES)UNSUB_SALES();clearAuth();window.location.href='index.html';}
+function doLogout(e){e.preventDefault();if(UNSUB_TEAM)UNSUB_TEAM();clearAuth();window.location.href='index.html';}
 
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = getAuth();
@@ -55,22 +55,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Firebase not configured</div><div class="sm mu">Paste your Firebase project config into assets/shared.js.</div></div>';
     return;
   }
-  REP_AUTH = auth; REP_ID = auth.repId;
+  REP_AUTH = auth; REP_ID = auth.repId; MANAGER_ID = auth.managerId;
   document.getElementById('rep-av').textContent = auth.name[0];
   document.getElementById('rep-nm').textContent = auth.name;
 
+  if(!MANAGER_ID){
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">No manager assigned</div><div class="sm mu">Your account is not linked to a manager. Contact your admin.</div></div>';
+    return;
+  }
+
   try{
-    DATA = await fetchSalesData();
+    DATA = await fetchTeam(MANAGER_ID);
   } catch(e){
     console.error(e);
     document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Connection error</div><div class="sm mu">Could not reach the cloud database. Check your internet connection.</div></div>';
     return;
   }
+  if(!DATA){
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:380px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Team not found</div><div class="sm mu">Your manager\u2019s team has not been set up yet. Contact your admin.</div></div>';
+    return;
+  }
   document.getElementById('loading-screen').classList.add('hide');
   renderRep();
 
-  // Live sync: re-render whenever the manager (or this rep on another device) changes data
-  UNSUB_SALES = listenSalesData(remote=>{
+  UNSUB_TEAM = listenTeam(MANAGER_ID, remote=>{
     DATA = remote;
     if(!showExpForm) renderRep();
   });
@@ -79,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function persist(){
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async ()=>{
-    try{ await saveSalesData(DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
+    try{ await saveTeam(MANAGER_ID, DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
   }, 250);
 }
 function getRep(){ return DATA.reps.find(r=>r.id===REP_ID); }

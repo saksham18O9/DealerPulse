@@ -41,6 +41,10 @@ body{display:flex;min-height:100vh;flex-direction:column}
       <button class="sb-link" data-tab="incentives" onclick="switchTab('incentives')"><span class="sb-ic">💰</span> Incentives</button>
       <button class="sb-link" data-tab="financials" onclick="switchTab('financials')"><span class="sb-ic">📊</span> P&amp;L Statement</button>
       <button class="sb-link" data-tab="forecast" onclick="switchTab('forecast')"><span class="sb-ic">🔮</span> Forecast</button>
+      <button class="sb-link" data-tab="otherteams" onclick="switchTab('otherteams')">
+        <span class="sb-ic">🔗</span> Other Teams
+        <span class="sb-badge" id="ot-badge">0</span>
+      </button>
     </nav>
     <div class="sb-footer">
       <div class="sb-stat"><span>Team members</span><span id="sb-team">—</span></div>
@@ -68,6 +72,7 @@ body{display:flex;min-height:100vh;flex-direction:column}
     <div id="tc-incentives" class="tc"></div>
     <div id="tc-financials" class="tc"></div>
     <div id="tc-forecast" class="tc"></div>
+    <div id="tc-otherteams" class="tc"></div>
 
     <footer class="site-footer no-print" style="margin-top:auto">
       <span>DealerPulse v3.0 · Lithium Sales Division · Synced live via cloud</span>
@@ -88,6 +93,7 @@ body{display:flex;min-height:100vh;flex-direction:column}
     <button class="sb-link" onclick="closeMob();switchTab('incentives')"><span class="sb-ic">💰</span> Incentives</button>
     <button class="sb-link" onclick="closeMob();switchTab('financials')"><span class="sb-ic">📊</span> P&amp;L Statement</button>
     <button class="sb-link" onclick="closeMob();switchTab('forecast')"><span class="sb-ic">🔮</span> Forecast</button>
+    <button class="sb-link" onclick="closeMob();switchTab('otherteams')"><span class="sb-ic">🔗</span> Other Teams</button>
   </div>
   <div style="padding:14px;border-top:1px solid var(--border)">
     <a class="sb-logout" href="index.html" onclick="doLogout(event)">⎋ Logout</a>
@@ -142,13 +148,21 @@ body{display:flex;min-height:100vh;flex-direction:column}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="assets/shared.js"></script>
 <script>
-/* ─── Manager Dashboard — Cloud Edition ─────────── */
-let DATA = null;
+/* ─── Manager Dashboard — Multi-Org Edition ─────────── */
+let DATA = null;       // own team: {orgId, managerId, managerName, reps, incentives}
+let FIN = null;        // org-wide shared financials
+let MY = null;         // {userId, name, orgId}
 let editTarget = null, expView = null, activeTab = 'dashboard', _delId = null;
-let UNSUB_SALES = null;
-let _saveTimer = null;
+let UNSUB_TEAM = null, UNSUB_FIN = null, UNSUB_INC_REQ = null, UNSUB_OUT_REQ = null;
+let _saveTimer = null, _finSaveTimer = null;
+let INCOMING_REQ = [], OUTGOING_REQ = [], OTHER_MANAGERS = [];
+let SHARED_TEAM_CACHE = {}; // managerId -> team data, loaded on demand for approved shares
 
-function doLogout(e){e.preventDefault();if(UNSUB_SALES)UNSUB_SALES();clearAuth();window.location.href='index.html';}
+function doLogout(e){
+  e.preventDefault();
+  [UNSUB_TEAM,UNSUB_FIN,UNSUB_INC_REQ,UNSUB_OUT_REQ].forEach(u=>u&&u());
+  clearAuth();window.location.href='index.html';
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = getAuth();
@@ -157,10 +171,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:420px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Firebase not configured</div><div class="sm mu">Paste your Firebase project config into assets/shared.js to use this dashboard.</div></div>';
     return;
   }
+  MY = {userId: auth.userId, name: auth.name, orgId: auth.orgId};
   document.getElementById('mh-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
 
+  if(!MY.orgId){
+    document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:420px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">No organization assigned</div><div class="sm mu">Your account is not linked to an organization. Contact your admin.</div></div>';
+    return;
+  }
+
   try{
-    DATA = await fetchSalesData();
+    DATA = await ensureTeam(MY.userId, MY.name, MY.orgId);
+    FIN = await fetchOrgFinancials(MY.orgId);
+    OTHER_MANAGERS = (await fetchManagersInOrg(MY.orgId)).filter(m=>m.id!==MY.userId);
   } catch(e){
     console.error(e);
     document.getElementById('loading-screen').innerHTML='<div class="card" style="max-width:420px;text-align:center"><div style="font-size:2rem;margin-bottom:10px">⚠️</div><div class="bold mb8">Connection error</div><div class="sm mu">Could not reach the cloud database. Check your internet connection.</div></div>';
@@ -168,26 +190,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('loading-screen').classList.add('hide');
-  updateSidebar(); renderDashboard(); renderTeam(); renderIncentives(); renderFinancials(); renderForecast();
+  updateSidebar(); renderDashboard(); renderTeam(); renderIncentives(); renderFinancials(); renderForecast(); renderOtherTeams();
   switchTab('dashboard');
 
-  // Live sync: re-render whenever the cloud data changes (e.g. a rep updates their status)
-  UNSUB_SALES = listenSalesData(remote=>{
+  UNSUB_TEAM = listenTeam(MY.userId, remote=>{
     DATA = remote;
     updateSidebar();
     if(activeTab==='dashboard') renderDashboard();
     if(activeTab==='team' && editTarget===null && expView===null) renderTeam();
     if(activeTab==='incentives') renderIncentives();
+  });
+  UNSUB_FIN = listenOrgFinancials(MY.orgId, remote=>{
+    FIN = remote;
+    if(activeTab==='dashboard') renderDashboard();
     if(activeTab==='financials') renderPLCard();
     if(activeTab==='forecast') renderForecast();
   });
+  UNSUB_INC_REQ = listenIncomingShareRequests(MY.userId, reqs=>{
+    INCOMING_REQ = reqs;
+    updateOtherTeamsBadge();
+    if(activeTab==='otherteams') renderOtherTeams();
+  });
+  UNSUB_OUT_REQ = listenOutgoingShareRequests(MY.userId, reqs=>{
+    OUTGOING_REQ = reqs;
+    if(activeTab==='otherteams') renderOtherTeams();
+    // (Re)load shared team data for any newly-approved outgoing requests
+    reqs.filter(r=>r.status==='approved').forEach(r=>{
+      if(!SHARED_TEAM_CACHE[r.toManagerId]){
+        fetchTeam(r.toManagerId).then(t=>{ SHARED_TEAM_CACHE[r.toManagerId]=t; if(activeTab==='otherteams') renderOtherTeams(); });
+      }
+    });
+  });
 });
 
-// Debounced cloud save: batches rapid edits (e.g. typing in a number field) into one write
+function updateOtherTeamsBadge(){
+  const pendingIncoming = INCOMING_REQ.filter(r=>r.status==='pending').length;
+  const b=document.getElementById('ot-badge');
+  if(b){ b.textContent=pendingIncoming; b.classList.toggle('on',pendingIncoming>0); }
+}
+
+// Debounced cloud save: batches rapid edits into one write
 function persist(){
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async ()=>{
-    try{ await saveSalesData(DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
+    try{ await saveTeam(MY.userId, DATA); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
+  }, 250);
+}
+function persistFin(){
+  clearTimeout(_finSaveTimer);
+  _finSaveTimer = setTimeout(async ()=>{
+    try{ await saveOrgFinancials(MY.orgId, FIN); } catch(e){ console.error(e); toast('Save failed — check connection','⚠️'); }
   }, 250);
 }
 function updRep(id,fn){ DATA.reps = DATA.reps.map(r=>r.id===id?fn({...r}):r); persist(); }
@@ -203,7 +255,7 @@ function switchTab(tab){
   activeTab=tab; editTarget=null; expView=null;
   document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
   document.getElementById('tc-'+tab).classList.add('active');
-  const titles={dashboard:'Dashboard',team:'Team Overview',incentives:'Incentives',financials:'P&L Statement',forecast:'Q3 Forecast'};
+  const titles={dashboard:'Dashboard',team:'Team Overview',incentives:'Incentives',financials:'P&L Statement',forecast:'Q3 Forecast',otherteams:'Other Teams'};
   document.getElementById('mh-title').textContent = titles[tab]||tab;
   document.querySelectorAll('.sb-link').forEach(l=>l.classList.toggle('active',l.dataset.tab===tab));
   if(tab==='team') renderTeam();
@@ -211,11 +263,12 @@ function switchTab(tab){
   if(tab==='financials') renderFinancials();
   if(tab==='forecast') renderForecast();
   if(tab==='dashboard') renderDashboard();
+  if(tab==='otherteams') renderOtherTeams();
 }
 
 // ── DASHBOARD ─────────────────────────────────────
 function renderDashboard(){
-  const reps=DATA.reps, f=DATA.financials, pl=calcPL(f), proj=projectQ(f), inc=DATA.incentives;
+  const reps=DATA.reps, f=FIN, pl=calcPL(f), proj=projectQ(f), inc=DATA.incentives;
   const totD=reps.reduce((s,r)=>s+r.current.dealers,0);
   const totN=reps.reduce((s,r)=>s+r.current.newDealers,0);
   const avgS=reps.length?Math.round(reps.reduce((s,r)=>s+score(r),0)/reps.length):0;
@@ -415,10 +468,11 @@ function saveInc(k,v){DATA.incentives[k]=v;persist();renderIncentives();}
 
 // ── P&L TAB ───────────────────────────────────────
 function renderFinancials(){
-  const f=DATA.financials;
+  const f=FIN;
   document.getElementById('tc-financials').innerHTML=`
-    <div class="f jb aic mb20"><div class="sec-t" style="margin-bottom:0">P&amp;L Statement</div>
+    <div class="f jb aic mb8" style="flex-wrap:wrap"><div class="sec-t" style="margin-bottom:0">P&amp;L Statement</div>
       <button class="btn btn-sm btn-ob no-print" onclick="openModal('modal-print')">📄 Export / Print</button></div>
+    <div class="info-strip mb16">🏬 This P&amp;L is shared across your whole organization — any manager who updates it here updates it for everyone.</div>
     <div class="g2" style="align-items:start">
       <div class="card"><div style="font-weight:700;color:var(--blue);margin-bottom:14px">Enter Financials</div>
         <div class="mb12"><span class="lbl">Revenue (₹)</span><input class="inp" type="number" value="${f.revenue}" onchange="saveFin('revenue',+this.value)"></div>
@@ -438,7 +492,7 @@ function renderFinancials(){
   renderPLCard();
 }
 function renderPLCard(){
-  const f=DATA.financials, pl=calcPL(f);
+  const f=FIN, pl=calcPL(f);
   const el=document.getElementById('pl-card'); if(!el)return;
   el.innerHTML=`<div style="font-weight:700;color:var(--green);margin-bottom:14px">P&amp;L Summary</div>`
     +plRow('Revenue',f.revenue)+plRow('Less: COGS',-(f.cogs||0),false,true)+plRow('Gross Profit',pl.gross,true)
@@ -450,12 +504,12 @@ function renderPLCard(){
     +`<div class="pl-pat"><span style="font-size:.95rem;font-weight:900">Profit After Tax (PAT)</span>
        <span style="font-size:1.35rem;font-weight:900;color:${pl.pat>=0?'var(--green)':'var(--red)'}">${fmtINR(pl.pat)}</span></div>`;
 }
-function saveFin(k,v){DATA.financials[k]=v;persist();renderPLCard();}
+function saveFin(k,v){FIN[k]=v;persistFin();renderPLCard();}
 function doPrint(){closeModal('modal-print');setTimeout(()=>window.print(),200);}
 
 // ── FORECAST TAB ──────────────────────────────────
 function renderForecast(){
-  const f=DATA.financials, proj=projectQ(f), m=Math.max(1,f.monthsElapsed||1), k=3/m;
+  const f=FIN, proj=projectQ(f), m=Math.max(1,f.monthsElapsed||1), k=3/m;
   const avgRev=Math.round(f.revenue/m);
   const mc=proj.grossPct>=30?'Solid margin above 30%.':proj.grossPct>=20?'Moderate. Review COGS.':'Low margin — urgent attention needed.';
   const mBtns=[1,2,3].map(n=>`<button class="month-btn ${f.monthsElapsed===n?'on':''}" onclick="setMonth(${n})">Month ${n}</button>`).join('');
@@ -484,7 +538,102 @@ function renderForecast(){
       </div>
     </div>`;
 }
-function setMonth(m){DATA.financials.monthsElapsed=m;persist();renderForecast();}
+function setMonth(m){FIN.monthsElapsed=m;persistFin();renderForecast();}
+
+// ── OTHER TEAMS TAB — cross-manager read-only sharing ─────
+function renderOtherTeams(){
+  updateOtherTeamsBadge();
+  const el = document.getElementById('tc-otherteams');
+  if(!el)return;
+
+  const pendingIn = INCOMING_REQ.filter(r=>r.status==='pending');
+  const incomingRows = pendingIn.map(r=>`
+    <div class="req-card">
+      <div class="f jb aic" style="flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="bold sm">${r.fromManagerName}</div>
+          <div class="xs mu mt4">Requested ${fmtDT(r.createdAt)} · wants read-only access to your team</div>
+        </div>
+        <div class="f g8p">
+          <button class="btn btn-sm btn-g" onclick="respondShareRequest('${r.id}','approved')">✓ Approve</button>
+          <button class="btn btn-sm btn-r" onclick="respondShareRequest('${r.id}','rejected')">✗ Decline</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const otherMgrOptions = OTHER_MANAGERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  const outgoingRows = OUTGOING_REQ.map(r=>{
+    const color = r.status==='approved'?'b-green':r.status==='rejected'?'b-red':'b-amber';
+    const label = r.status==='approved'?'✅ Approved':r.status==='rejected'?'❌ Declined':'⏳ Waiting';
+    return `<div class="user-row">
+      <div class="u-av" style="background:var(--purple)">${r.toManagerName[0]}</div>
+      <div class="u-info"><div class="u-name">${r.toManagerName}</div><div class="u-meta">Requested ${fmtDT(r.createdAt)}</div></div>
+      <span class="badge ${color}">${label}</span>
+    </div>`;
+  }).join('');
+
+  const approvedOut = OUTGOING_REQ.filter(r=>r.status==='approved');
+  const sharedTeamCards = approvedOut.map(r=>{
+    const team = SHARED_TEAM_CACHE[r.toManagerId];
+    if(!team) return `<div class="card card-sm"><div class="bold sm">${r.toManagerName}</div><div class="xs mu mt4">Loading…</div></div>`;
+    const ranked = [...team.reps].sort((a,b)=>score(b)-score(a));
+    const rows = ranked.map(rp=>{
+      const sc = score(rp);
+      const col = sc>=75?'var(--green)':sc>=50?'var(--blue)':'var(--amber)';
+      return `<div class="lb-row">
+        <div class="lb-info"><div class="lb-name">${rp.name}</div><div class="lb-terr">${rp.territory}</div></div>
+        <div style="flex:2;min-width:0;padding:0 10px">
+          <div class="xs mu mb4">${rp.current.dealers}/${rp.targets.dealers} dealers · ${rp.current.newDealers}/${rp.targets.newDealers} new</div>
+          <div class="bar-wrap"><div class="bar" style="width:${sc}%;background:${col}"></div></div>
+        </div>
+        <div class="lb-score" style="color:${col}">${sc}%</div>
+      </div>`;
+    }).join('');
+    return `<div class="card mb16">
+      <div class="f jb aic mb12"><div class="bold">${team.managerName}'s Team</div><span class="badge b-blue">👁 Read-only</span></div>
+      ${rows||'<p class="xs mu">No reps in this team yet.</p>'}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="sec-t">Other Teams</div>
+    <div class="g2 mb16" style="align-items:start">
+      <div class="card">
+        <div class="bold sm mb12">Incoming Requests ${pendingIn.length>0?'<span class="badge b-amber">'+pendingIn.length+'</span>':''}</div>
+        ${pendingIn.length===0?'<p class="xs mu" style="padding:8px 0">No pending requests from other managers.</p>':incomingRows}
+      </div>
+      <div class="card">
+        <div class="bold sm mb12">Request Access to Another Team</div>
+        ${OTHER_MANAGERS.length===0?'<p class="xs mu">No other managers in your organization yet.</p>':`
+          <div class="f g8p mb8">
+            <select class="inp" id="ot-mgr-select" style="flex:1"><option value="">Select a manager</option>${otherMgrOptions}</select>
+            <button class="btn btn-sm" style="background:var(--blue);color:#fff" onclick="sendShareRequest()">Request</button>
+          </div>
+          <div class="xs mu">They'll see your request and can approve or decline it. Approved access is read-only.</div>`}
+        ${OUTGOING_REQ.length>0?`<div class="divider"></div><div class="bold sm mb8">Your Requests</div>${outgoingRows}`:''}
+      </div>
+    </div>
+    ${approvedOut.length>0?`<div class="bold mb12">Teams Shared With You</div>${sharedTeamCards}`:''}`;
+}
+
+async function sendShareRequest(){
+  const toManagerId = document.getElementById('ot-mgr-select').value;
+  if(!toManagerId){toast('Please select a manager.','⚠️');return;}
+  if(OUTGOING_REQ.some(r=>r.toManagerId===toManagerId && r.status!=='rejected')){
+    toast('You already have a request with this manager.','⚠️');return;
+  }
+  const toMgr = OTHER_MANAGERS.find(m=>m.id===toManagerId);
+  try{
+    await createShareRequest({orgId:MY.orgId, fromManagerId:MY.userId, fromManagerName:MY.name, toManagerId, toManagerName:toMgr.name});
+    toast('Request sent to '+toMgr.name,'📨');
+  }catch(e){console.error(e);toast('Error sending request','⚠️');}
+}
+async function respondShareRequest(reqId, status){
+  try{
+    await updateShareRequest(reqId, {status, respondedAt:new Date().toISOString()});
+    toast(status==='approved'?'Access granted':'Request declined', status==='approved'?'✅':'❌');
+  }catch(e){console.error(e);toast('Error responding to request','⚠️');}
+}
 </script>
 </body>
 </html>

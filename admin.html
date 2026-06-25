@@ -132,11 +132,13 @@ body{min-height:100vh}
     <div class="adm-tabs">
       <button class="adm-tab on" data-tab="pending" onclick="showTab('pending')">📋 Pending <span id="pend-cnt-tab"></span></button>
       <button class="adm-tab" data-tab="users" onclick="showTab('users')">👥 All Users</button>
+      <button class="adm-tab" data-tab="orgs" onclick="showTab('orgs')">🏬 Organizations</button>
       <button class="adm-tab" data-tab="history" onclick="showTab('history')">📄 Login History</button>
     </div>
 
     <div id="tab-pending" class="tab-sec"></div>
     <div id="tab-users" class="tab-sec" style="display:none"></div>
+    <div id="tab-orgs" class="tab-sec" style="display:none"></div>
     <div id="tab-history" class="tab-sec" style="display:none"></div>
   </div>
 
@@ -191,7 +193,8 @@ let _revokeId = null, _resetId = null;
 // Live cached state (kept in sync by Firestore listeners)
 let ALL_USERS = [];
 let ALL_HISTORY = [];
-let UNSUB_USERS = null, UNSUB_HISTORY = null;
+let ALL_ORGS = [];
+let UNSUB_USERS = null, UNSUB_HISTORY = null, UNSUB_ORGS = null;
 
 function tpwA(){const i=document.getElementById('alg-pass');i.type=i.type==='password'?'text':'password';}
 
@@ -216,6 +219,7 @@ function adminLogout(){
   adminAuthed=false;
   if(UNSUB_USERS) UNSUB_USERS();
   if(UNSUB_HISTORY) UNSUB_HISTORY();
+  if(UNSUB_ORGS) UNSUB_ORGS();
   document.getElementById('admin-panel').classList.remove('on');
   document.getElementById('admin-login').style.display='';
 }
@@ -231,9 +235,67 @@ function startListeners(){
     renderStats();
     renderHistory();
   }, 200);
+  UNSUB_ORGS = listenOrgs(orgs=>{
+    ALL_ORGS = orgs;
+    renderOrgs();
+    renderPending();
+  });
 }
 
 function renderAll(){renderStats();renderPending();renderUsers();}
+
+function renderOrgs(){
+  const el = document.getElementById('tab-orgs');
+  if(!el)return;
+  const rows = ALL_ORGS.map(o=>{
+    const userCount = ALL_USERS.filter(u=>u.orgId===o.id).length;
+    return `<div class="user-row">
+      <div class="u-av" style="background:var(--purple)">🏬</div>
+      <div class="u-info">
+        <div class="u-name">${o.name}</div>
+        <div class="u-meta">${userCount} user${userCount!==1?'s':''} &nbsp;·&nbsp; Created ${fmtDT(o.createdAt)}</div>
+      </div>
+      <div class="u-actions">
+        <button class="btn btn-xs btn-or" onclick="askDeleteOrg('${o.id}','${escAttr(o.name)}',${userCount})" title="Delete organization">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="f jb aic mb16" style="flex-wrap:wrap;gap:10px">
+      <div style="font-size:1rem;font-weight:800">Organizations (${ALL_ORGS.length})</div>
+    </div>
+    <div class="card mb16">
+      <div class="bold sm mb12">Create New Organization</div>
+      <div class="f g8p">
+        <input class="inp" id="new-org-name" placeholder="e.g. LG, LV, Acme Corp" style="flex:1">
+        <button class="btn btn-sm btn-g" onclick="execCreateOrg()">+ Create</button>
+      </div>
+      <div class="err" id="org-err" style="margin-top:10px"></div>
+    </div>
+    <div class="card">${rows||'<div class="empty"><div class="empty-ic">🏬</div><div class="empty-msg">No organizations yet — create one above</div></div>'}</div>`;
+}
+async function execCreateOrg(){
+  const name=document.getElementById('new-org-name').value.trim();
+  const err=document.getElementById('org-err');
+  if(!name){err.textContent='Please enter an organization name.';return;}
+  if(ALL_ORGS.some(o=>o.name.toLowerCase()===name.toLowerCase())){err.textContent='An organization with this name already exists.';return;}
+  err.textContent='';
+  try{
+    await createOrg(name);
+    document.getElementById('new-org-name').value='';
+    toast('Organization "'+name+'" created','🏬');
+  }catch(e){console.error(e);err.textContent='Connection error. Try again.';}
+}
+let _delOrgId=null;
+function askDeleteOrg(orgId,name,userCount){
+  if(userCount>0){
+    toast('Cannot delete "'+name+'" — it still has '+userCount+' user(s) assigned.','⚠️');
+    return;
+  }
+  _delOrgId=orgId;
+  if(!confirm('Delete organization "'+name+'"? This cannot be undone.'))return;
+  deleteOrg(orgId).then(()=>toast(name+' deleted')).catch(e=>{console.error(e);toast('Error deleting organization','⚠️');});
+}
 
 function renderStats(){
   const pending = ALL_USERS.filter(u=>u.status==='pending').length;
@@ -276,6 +338,7 @@ function renderPending(){
           <div>
             <div style="font-size:.95rem;font-weight:700">${u.name}</div>
             <div class="req-meta">Username:<span>${u.username}</span> &nbsp;·&nbsp; Role:<span>${u.role==='manager'?'Manager':'Sales Rep'}</span>${u.territory?' &nbsp;·&nbsp; Territory:<span>'+u.territory+'</span>':''}</div>
+            <div class="req-meta">Org:<span>${u.orgName||orgNameFor(u.orgId)||'—'}</span>${u.managerName?' &nbsp;·&nbsp; Reports to:<span>'+u.managerName+'</span>':''}</div>
             <div class="req-meta">Requested:<span>${fmtDT(u.createdAt)}</span></div>
           </div>
         </div>
@@ -284,7 +347,7 @@ function renderPending(){
           ${u.role==='rep'?'<span class="badge b-blue">Sales Rep</span>':'<span class="badge b-amber">Manager</span>'}
         </div>
       </div>
-      <div class="info-strip mb8">🔒 Password set by user · Will be auto-linked to ${u.role==='rep'?(u.territory||'new')+' territory rep profile':'manager dashboard'}</div>
+      <div class="info-strip mb8">🔒 ${u.role==='rep'?'Will be added to '+(u.managerName||'their manager')+' team upon approval':'Will get their own separate team upon approval'}</div>
       <textarea class="note-inp" id="note-${u.id}" rows="2" placeholder="Optional: reason for rejection (leave blank if approving)"></textarea>
       <div class="f g8p mt12">
         <button class="btn btn-sm btn-g" onclick="approveUser('${u.id}')">✓ Approve</button>
@@ -292,21 +355,35 @@ function renderPending(){
       </div>
     </div>`).join('');
 }
+function orgNameFor(orgId){return ALL_ORGS.find(o=>o.id===orgId)?.name||'';}
 
 async function approveUser(userId){
   const u = ALL_USERS.find(x=>x.id===userId);
   if(!u)return;
   try{
     const patch = {status:'approved', approvedAt:new Date().toISOString(), approvedBy:'admin'};
-    if(u.role==='rep' && !u.repId){
+
+    if(u.role==='manager'){
+      // Managers get their own team doc, keyed by their own user id
+      await ensureTeam(userId, u.name, u.orgId);
+    } else if(u.role==='rep'){
+      if(!u.managerId){
+        toast('Cannot approve — this rep has no reporting manager assigned.','⚠️');
+        return;
+      }
       const repId = uid();
       patch.repId = repId;
-      const sales = await fetchSalesData();
-      sales.reps.push({id:repId,name:u.name,territory:u.territory||'New Territory',
+      const team = await fetchTeam(u.managerId);
+      if(!team){
+        toast('Cannot approve — reporting manager team was not found. Approve the manager first.','⚠️');
+        return;
+      }
+      team.reps.push({id:repId,name:u.name,territory:u.territory||'New Territory',
         targets:{dealers:40,newDealers:6},
         current:{dealers:0,newDealers:0,location:(u.territory||'New')+' Market',updatedAt:TODAY},expenses:[]});
-      await saveSalesData(sales);
+      await saveTeam(u.managerId, team);
     }
+
     await updateUserDoc(userId, patch);
     await addHistoryEntry({userId,name:u.name,username:u.username,role:u.role,status:'approved_by_admin',reason:'Admin approved access'});
     toast(u.name+' approved — they can now log in','✅');
@@ -338,7 +415,7 @@ function renderUsers(){
       <div class="u-av" style="background:${u.status==='approved'?colorMap[u.role]||'var(--blue)':'#334155'}">${u.name[0]}</div>
       <div class="u-info">
         <div class="u-name">${u.name}</div>
-        <div class="u-meta">@${u.username} &nbsp;·&nbsp; ${u.role==='manager'?'Manager':'Sales Rep'}${u.territory?' &nbsp;·&nbsp; '+u.territory:''}</div>
+        <div class="u-meta">@${u.username} &nbsp;·&nbsp; ${u.role==='manager'?'Manager':'Sales Rep'}${u.territory?' &nbsp;·&nbsp; '+u.territory:''} &nbsp;·&nbsp; ${u.orgName||orgNameFor(u.orgId)||'No org'}</div>
       </div>
       <div style="flex-shrink:0;margin:0 12px">
         <span class="badge ${u.status==='approved'?'b-green':u.status==='pending'?'b-amber':'b-red'}">

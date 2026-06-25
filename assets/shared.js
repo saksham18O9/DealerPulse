@@ -180,6 +180,103 @@ function fmtINR(n){
 }
 function pct(a,b){return b>0?Math.min(100,Math.round(a/b*100)):0;}
 function score(r){return Math.round(pct(r.current.dealers,r.targets.dealers)*.5+pct(r.current.newDealers,r.targets.newDealers)*.5);}
+// ══════════════════════════════════════════════════
+//  ORGANIZATIONS — admin-managed list, top-level isolation
+// ══════════════════════════════════════════════════
+async function fetchOrgs(){
+  const snap = await db.collection('organizations').orderBy('name').get();
+  return snap.docs.map(d=>({id:d.id, ...d.data()}));
+}
+async function createOrg(name){
+  const ref = await db.collection('organizations').add({name:name.trim(), createdAt:new Date().toISOString()});
+  return ref.id;
+}
+async function deleteOrg(orgId){
+  await db.collection('organizations').doc(orgId).delete();
+}
+function listenOrgs(callback){
+  return db.collection('organizations').orderBy('name').onSnapshot(snap=>{
+    callback(snap.docs.map(d=>({id:d.id, ...d.data()})));
+  }, err=>console.error('listenOrgs error:', err));
+}
+
+// ══════════════════════════════════════════════════
+//  TEAMS — one doc per manager: {orgId, managerId, managerName, reps[], incentives{}}
+// ══════════════════════════════════════════════════
+const DEFAULT_TEAM_INCENTIVES = {perRepSale:500,perRepNewDealer:2500,channelBonus:1000,channelPeriod:3};
+
+async function fetchTeam(managerId){
+  const doc = await db.collection('teams').doc(managerId).get();
+  if(doc.exists) return doc.data();
+  return null;
+}
+async function ensureTeam(managerId, managerName, orgId){
+  const ref = db.collection('teams').doc(managerId);
+  const doc = await ref.get();
+  if(!doc.exists){
+    const fresh = {orgId, managerId, managerName, reps:[], incentives:{...DEFAULT_TEAM_INCENTIVES}};
+    await ref.set(fresh);
+    return fresh;
+  }
+  return doc.data();
+}
+async function saveTeam(managerId, data){
+  await db.collection('teams').doc(managerId).set(data);
+}
+function listenTeam(managerId, callback){
+  return db.collection('teams').doc(managerId).onSnapshot(doc=>{
+    if(doc.exists) callback(doc.data());
+  }, err=>console.error('listenTeam error:', err));
+}
+async function fetchManagersInOrg(orgId){
+  const snap = await db.collection('users').where('orgId','==',orgId).where('role','==','manager').where('status','==','approved').get();
+  return snap.docs.map(d=>({id:d.id, ...d.data()}));
+}
+
+// ══════════════════════════════════════════════════
+//  ORG FINANCIALS — one shared P&L per organization
+// ══════════════════════════════════════════════════
+const DEFAULT_ORG_FINANCIALS = {revenue:0,cogs:0,salaries:0,marketing:0,logistics:0,otherOpEx:0,otherIncome:0,taxRate:25,monthsElapsed:1};
+
+async function fetchOrgFinancials(orgId){
+  const ref = db.collection('orgFinancials').doc(orgId);
+  const doc = await ref.get();
+  if(doc.exists) return doc.data();
+  await ref.set(DEFAULT_ORG_FINANCIALS);
+  return {...DEFAULT_ORG_FINANCIALS};
+}
+async function saveOrgFinancials(orgId, data){
+  await db.collection('orgFinancials').doc(orgId).set(data);
+}
+function listenOrgFinancials(orgId, callback){
+  return db.collection('orgFinancials').doc(orgId).onSnapshot(doc=>{
+    if(doc.exists) callback(doc.data());
+  }, err=>console.error('listenOrgFinancials error:', err));
+}
+
+// ══════════════════════════════════════════════════
+//  SHARE REQUESTS — Manager A asks to view Manager B's team (read-only)
+// ══════════════════════════════════════════════════
+async function createShareRequest({orgId,fromManagerId,fromManagerName,toManagerId,toManagerName}){
+  await db.collection('shareRequests').add({
+    orgId,fromManagerId,fromManagerName,toManagerId,toManagerName,
+    status:'pending', createdAt:new Date().toISOString(), respondedAt:null
+  });
+}
+async function updateShareRequest(id, patch){
+  await db.collection('shareRequests').doc(id).update(patch);
+}
+function listenIncomingShareRequests(managerId, callback){
+  return db.collection('shareRequests').where('toManagerId','==',managerId).onSnapshot(snap=>{
+    callback(snap.docs.map(d=>({id:d.id, ...d.data()})));
+  }, err=>console.error('listenIncomingShareRequests error:', err));
+}
+function listenOutgoingShareRequests(managerId, callback){
+  return db.collection('shareRequests').where('fromManagerId','==',managerId).onSnapshot(snap=>{
+    callback(snap.docs.map(d=>({id:d.id, ...d.data()})));
+  }, err=>console.error('listenOutgoingShareRequests error:', err));
+}
+
 function uid(){return 'id_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);}
 function escAttr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function calcPL(f){

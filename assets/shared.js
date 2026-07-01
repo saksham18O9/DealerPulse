@@ -36,65 +36,12 @@ function showConfigWarningIfNeeded(){
   document.body.prepend(b);
 }
 
-// ── DEFAULT SEED DATA (used only the very first time the database is empty) ──
-const DEFAULT_SALES_DATA = {
-  reps:[
-    {id:'r1',name:'Ravi Sharma',territory:'Pataudi',
-     targets:{dealers:45,newDealers:8},
-     current:{dealers:32,newDealers:5,location:'Pataudi Main Market',updatedAt:'2026-06-12'},
-     expenses:[{id:'e1',date:'2026-06-10',desc:'Travel to Pataudi',amount:850,status:'pending'},
-               {id:'e2',date:'2026-06-08',desc:'Client lunch meeting',amount:1200,status:'approved'}]},
-    {id:'r2',name:'Priya Mehta',territory:'Bilaspur',
-     targets:{dealers:40,newDealers:6},
-     current:{dealers:28,newDealers:4,location:'Bilaspur Central',updatedAt:'2026-06-13'},
-     expenses:[{id:'e3',date:'2026-06-11',desc:'Fuel reimbursement',amount:1100,status:'pending'}]},
-    {id:'r3',name:'Arjun Singh',territory:'HaileyMandi',
-     targets:{dealers:50,newDealers:10},
-     current:{dealers:41,newDealers:8,location:'HaileyMandi Hub',updatedAt:TODAY},
-     expenses:[{id:'e4',date:'2026-06-09',desc:'Demo materials',amount:2200,status:'approved'}]},
-  ],
-  incentives:{perRepSale:500,perRepNewDealer:2500,channelBonus:1000,channelPeriod:3},
-  financials:{revenue:4200000,cogs:2800000,salaries:380000,marketing:120000,logistics:95000,
-              otherOpEx:55000,otherIncome:50000,taxRate:25,monthsElapsed:2}
-};
-
-const DEFAULT_USERS_SEED = [
-  {name:'Manager',username:'manager',password:'Admin@123',role:'manager',repId:null,territory:null,
-   status:'approved',createdAt:new Date().toISOString(),approvedAt:new Date().toISOString(),approvedBy:'system',
-   rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0},
-  {name:'Ravi Sharma',username:'ravi.sharma',password:'Sales@123',role:'rep',repId:'r1',territory:'Pataudi',
-   status:'approved',createdAt:new Date().toISOString(),approvedAt:new Date().toISOString(),approvedBy:'system',
-   rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0},
-  {name:'Priya Mehta',username:'priya.mehta',password:'Sales@123',role:'rep',repId:'r2',territory:'Bilaspur',
-   status:'approved',createdAt:new Date().toISOString(),approvedAt:new Date().toISOString(),approvedBy:'system',
-   rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0},
-  {name:'Arjun Singh',username:'arjun.singh',password:'Sales@123',role:'rep',repId:'r3',territory:'HaileyMandi',
-   status:'approved',createdAt:new Date().toISOString(),approvedAt:new Date().toISOString(),approvedBy:'system',
-   rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0},
-];
-
-// ── SEEDING (runs once, only if the database is empty) ──
-let _seedPromise = null;
-function seedIfEmpty(){
-  if(!db) return Promise.resolve();
-  if(_seedPromise) return _seedPromise;
-  _seedPromise = (async()=>{
-    const snap = await db.collection('users').limit(1).get();
-    if(snap.empty){
-      const batch = db.batch();
-      DEFAULT_USERS_SEED.forEach(u=>{
-        const ref = db.collection('users').doc();
-        batch.set(ref, u);
-      });
-      batch.set(db.collection('salesData').doc('main'), DEFAULT_SALES_DATA);
-      await batch.commit();
-    } else {
-      const sd = await db.collection('salesData').doc('main').get();
-      if(!sd.exists) await db.collection('salesData').doc('main').set(DEFAULT_SALES_DATA);
-    }
-  })();
-  return _seedPromise;
-}
+/* ════════════════════════════════════════════════
+   🛡 ADMIN PANEL LOGIN — SET YOUR OWN CREDENTIALS HERE
+   This is the username/password for admin.html only.
+   Change these to something only you know, then redeploy.
+   ════════════════════════════════════════════════ */
+const ADMIN_CREDS = { user: "admin", pass: "ChangeThisPassword123!" };
 
 // ── SESSION AUTH (kept local — each device keeps its own login session) ──
 function getAuth(){try{return JSON.parse(localStorage.getItem('dp_auth'))||null;}catch{return null;}}
@@ -107,12 +54,10 @@ function clearAuth(){localStorage.removeItem('dp_auth');}
 
 // ---- USERS ----
 async function fetchAllUsers(){
-  await seedIfEmpty();
   const snap = await db.collection('users').get();
   return snap.docs.map(d=>({id:d.id, ...d.data()}));
 }
 async function fetchUserByUsername(username){
-  await seedIfEmpty();
   const uname = username.toLowerCase().trim();
   const snap = await db.collection('users').where('username','==',uname).limit(1).get();
   if(snap.empty) return null;
@@ -120,7 +65,6 @@ async function fetchUserByUsername(username){
   return {id:d.id, ...d.data()};
 }
 async function createUser(user){
-  await seedIfEmpty();
   const ref = await db.collection('users').add(user);
   return ref.id;
 }
@@ -157,21 +101,6 @@ function listenHistory(callback, limitN){
   }, err=>console.error('listenHistory error:', err));
 }
 
-// ---- SALES DATA (reps, incentives, financials) ----
-async function fetchSalesData(){
-  await seedIfEmpty();
-  const doc = await db.collection('salesData').doc('main').get();
-  return doc.exists ? doc.data() : DEFAULT_SALES_DATA;
-}
-async function saveSalesData(data){
-  await db.collection('salesData').doc('main').set(data);
-}
-function listenSalesData(callback){
-  return db.collection('salesData').doc('main').onSnapshot(doc=>{
-    if(doc.exists) callback(doc.data());
-  }, err=>console.error('listenSalesData error:', err));
-}
-
 // ── MATH / FORMAT HELPERS (unchanged — pure functions, no data dependency) ──
 function fmtINR(n){
   n=n||0;const a=Math.abs(n);
@@ -180,16 +109,44 @@ function fmtINR(n){
 }
 function pct(a,b){return b>0?Math.min(100,Math.round(a/b*100)):0;}
 function score(r){return Math.round(pct(r.current.dealers,r.targets.dealers)*.5+pct(r.current.newDealers,r.targets.newDealers)*.5);}
+
 // ══════════════════════════════════════════════════
-//  ORGANIZATIONS — admin-managed list, top-level isolation
+//  ORGANIZATIONS — self-service registration, admin-approved
 // ══════════════════════════════════════════════════
 async function fetchOrgs(){
   const snap = await db.collection('organizations').orderBy('name').get();
   return snap.docs.map(d=>({id:d.id, ...d.data()}));
 }
+async function fetchApprovedOrgs(){
+  const all = await fetchOrgs();
+  return all.filter(o=>o.status==='approved');
+}
+async function fetchOrgById(orgId){
+  if(!orgId) return null;
+  const doc = await db.collection('organizations').doc(orgId).get();
+  return doc.exists ? {id:doc.id, ...doc.data()} : null;
+}
+// Admin creates an org directly — auto-approved, no review needed
 async function createOrg(name){
-  const ref = await db.collection('organizations').add({name:name.trim(), createdAt:new Date().toISOString()});
+  const ref = await db.collection('organizations').add({
+    name:name.trim(), status:'approved', createdAt:new Date().toISOString(),
+    approvedAt:new Date().toISOString(), requestedBy:null
+  });
   return ref.id;
+}
+// A signing-up user requests a brand new org — goes in as 'pending' until admin approves
+async function createOrgRequest(name, requestedByName){
+  const ref = await db.collection('organizations').add({
+    name:name.trim(), status:'pending', createdAt:new Date().toISOString(),
+    approvedAt:null, requestedBy:requestedByName||null
+  });
+  return ref.id;
+}
+async function approveOrg(orgId){
+  await db.collection('organizations').doc(orgId).update({status:'approved', approvedAt:new Date().toISOString()});
+}
+async function rejectOrg(orgId){
+  await db.collection('organizations').doc(orgId).delete();
 }
 async function deleteOrg(orgId){
   await db.collection('organizations').doc(orgId).delete();

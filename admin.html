@@ -99,7 +99,7 @@ body{min-height:100vh}
       <div class="alg-badge">🛡 Admin Access</div>
       <div class="alg-title">Admin Login</div>
       <div class="alg-sub">Restricted area. Admin credentials required.</div>
-      <div class="alg-hint">Credentials &nbsp;·&nbsp; Username: <code>admin</code> &nbsp;·&nbsp; Password: <code>DealerAdmin@2026</code></div>
+      <div class="alg-hint">Credentials are set in <code>assets/shared.js</code> → <code>ADMIN_CREDS</code>. Edit that file to set your own username and password.</div>
       <div class="alg-err" id="alg-err"></div>
       <div class="alg-fld"><label>Username</label><input type="text" id="alg-user" placeholder="admin" autocomplete="off"></div>
       <div class="alg-fld"><label>Password</label>
@@ -132,7 +132,7 @@ body{min-height:100vh}
     <div class="adm-tabs">
       <button class="adm-tab on" data-tab="pending" onclick="showTab('pending')">📋 Pending <span id="pend-cnt-tab"></span></button>
       <button class="adm-tab" data-tab="users" onclick="showTab('users')">👥 All Users</button>
-      <button class="adm-tab" data-tab="orgs" onclick="showTab('orgs')">🏬 Organizations</button>
+      <button class="adm-tab" data-tab="orgs" onclick="showTab('orgs')">🏬 Organizations <span id="org-cnt-tab"></span></button>
       <button class="adm-tab" data-tab="history" onclick="showTab('history')">📄 Login History</button>
     </div>
 
@@ -185,7 +185,7 @@ body{min-height:100vh}
    ADMIN PANEL LOGIC — Cloud Edition
    ════════════════════════════ */
 
-const ADMIN_CREDS = {user:'admin', pass:'DealerAdmin@2026'};
+// Admin credentials are set in assets/shared.js as ADMIN_CREDS — change them there.
 let adminAuthed = false;
 let histFilter = 'all';
 let _revokeId = null, _resetId = null;
@@ -247,32 +247,67 @@ function renderAll(){renderStats();renderPending();renderUsers();}
 function renderOrgs(){
   const el = document.getElementById('tab-orgs');
   if(!el)return;
-  const rows = ALL_ORGS.map(o=>{
+  const pending = ALL_ORGS.filter(o=>o.status==='pending');
+  const approved = ALL_ORGS.filter(o=>o.status==='approved');
+  const oc=document.getElementById('org-cnt-tab');
+  if(oc)oc.innerHTML=pending.length>0?' <span style="background:var(--red);color:#fff;font-size:.6rem;padding:1px 6px;border-radius:20px;font-weight:800">'+pending.length+'</span>':'';
+
+  const pendingRows = pending.map(o=>`
+    <div class="req-card">
+      <div class="f jb aic" style="flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="bold sm">${o.name}</div>
+          <div class="xs mu mt4">Requested by ${o.requestedBy||'unknown'} · ${fmtDT(o.createdAt)}</div>
+        </div>
+        <div class="f g8p">
+          <button class="btn btn-sm btn-g" onclick="approveOrgReq('${o.id}','${escAttr(o.name)}')">✓ Approve</button>
+          <button class="btn btn-sm btn-r" onclick="rejectOrgReq('${o.id}','${escAttr(o.name)}')">✗ Reject</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const approvedRows = approved.map(o=>{
     const userCount = ALL_USERS.filter(u=>u.orgId===o.id).length;
     return `<div class="user-row">
       <div class="u-av" style="background:var(--purple)">🏬</div>
       <div class="u-info">
         <div class="u-name">${o.name}</div>
-        <div class="u-meta">${userCount} user${userCount!==1?'s':''} &nbsp;·&nbsp; Created ${fmtDT(o.createdAt)}</div>
+        <div class="u-meta">${userCount} user${userCount!==1?'s':''} &nbsp;·&nbsp; Approved ${fmtDT(o.approvedAt||o.createdAt)}</div>
       </div>
       <div class="u-actions">
         <button class="btn btn-xs btn-or" onclick="askDeleteOrg('${o.id}','${escAttr(o.name)}',${userCount})" title="Delete organization">🗑</button>
       </div>
     </div>`;
   }).join('');
+
   el.innerHTML = `
     <div class="f jb aic mb16" style="flex-wrap:wrap;gap:10px">
-      <div style="font-size:1rem;font-weight:800">Organizations (${ALL_ORGS.length})</div>
+      <div style="font-size:1rem;font-weight:800">Organizations</div>
     </div>
+    ${pending.length>0?`<div class="bold sm mb12">Pending Organization Requests <span class="badge b-amber">${pending.length}</span></div>${pendingRows}<div class="divider" style="margin:20px 0"></div>`:''}
     <div class="card mb16">
-      <div class="bold sm mb12">Create New Organization</div>
+      <div class="bold sm mb12">Create New Organization (instantly approved)</div>
       <div class="f g8p">
         <input class="inp" id="new-org-name" placeholder="e.g. LG, LV, Acme Corp" style="flex:1">
         <button class="btn btn-sm btn-g" onclick="execCreateOrg()">+ Create</button>
       </div>
       <div class="err" id="org-err" style="margin-top:10px"></div>
     </div>
-    <div class="card">${rows||'<div class="empty"><div class="empty-ic">🏬</div><div class="empty-msg">No organizations yet — create one above</div></div>'}</div>`;
+    <div class="bold sm mb12">Approved Organizations (${approved.length})</div>
+    <div class="card">${approvedRows||'<div class="empty"><div class="empty-ic">🏬</div><div class="empty-msg">No organizations yet — create one above, or wait for a self-service request</div></div>'}</div>`;
+}
+async function approveOrgReq(orgId,name){
+  try{
+    await approveOrg(orgId);
+    toast(name+' approved — its members can now log in','✅');
+  }catch(e){console.error(e);toast('Error approving organization','⚠️');}
+}
+async function rejectOrgReq(orgId,name){
+  if(!confirm('Reject and delete organization request "'+name+'"? This cannot be undone.'))return;
+  try{
+    await rejectOrg(orgId);
+    toast(name+' request rejected','❌');
+  }catch(e){console.error(e);toast('Error rejecting organization','⚠️');}
 }
 async function execCreateOrg(){
   const name=document.getElementById('new-org-name').value.trim();

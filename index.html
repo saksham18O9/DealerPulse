@@ -96,7 +96,7 @@
         <div class="rbadge amber">🏢 Manager Login</div>
         <div class="ftitle">Welcome back</div>
         <div class="fsub">Sign in with your manager credentials.</div>
-        <div class="hint">Demo &nbsp;·&nbsp; Username: <code>manager</code> &nbsp;·&nbsp; Password: <code>Admin@123</code></div>
+        <div class="hint">Don't have an account yet? Use "Request Access" below.</div>
         <div class="err" id="mgr-err"></div>
         <div class="fld"><label>Username</label><input type="text" id="mgr-user" placeholder="Enter your username" autocomplete="off"></div>
         <div class="fld"><label>Password</label>
@@ -114,7 +114,7 @@
         <div class="rbadge blue">👤 Sales Rep Login</div>
         <div class="ftitle">Welcome back</div>
         <div class="fsub">Sign in with your assigned username and password.</div>
-        <div class="hint">Example &nbsp;·&nbsp; Username: <code>ravi.sharma</code> &nbsp;·&nbsp; Password: <code>Sales@123</code></div>
+        <div class="hint">Don't have an account yet? Use "Request Access" below.</div>
         <div class="err" id="rep-err"></div>
         <div class="fld"><label>Username</label><input type="text" id="rep-user" placeholder="Enter your username" autocomplete="off"></div>
         <div class="fld"><label>Password</label>
@@ -137,9 +137,15 @@
           <div class="fld" style="grid-column:1/3"><label>Full Name</label><input type="text" id="req-name" placeholder="e.g. Sunita Verma"></div>
           <div class="fld" style="grid-column:1/3">
             <label>Organization</label>
+            <div class="f g8p mb8">
+              <button type="button" class="btn btn-sm" id="org-mode-existing" style="flex:1;background:var(--purple);color:#fff" onclick="setOrgMode('existing')">Join Existing</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="org-mode-new" style="flex:1" onclick="setOrgMode('new')">Register New Org</button>
+            </div>
             <select id="req-org" onchange="onOrgChange()">
               <option value="">Select organization</option>
             </select>
+            <input type="text" id="req-org-new" placeholder="e.g. LG, LV, Acme Corp" style="display:none">
+            <div class="xs mu mt4" id="org-mode-hint">Your manager will see this once approved by the admin.</div>
           </div>
           <div class="fld">
             <label>Role</label>
@@ -231,15 +237,40 @@ function goLS(id){
 }
 function tpw(id,btn){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';}
 function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.classList.add('show');}
+let orgMode = 'existing';
+function setOrgMode(mode){
+  orgMode = mode;
+  document.getElementById('org-mode-existing').style.background = mode==='existing'?'var(--purple)':'';
+  document.getElementById('org-mode-existing').style.color = mode==='existing'?'#fff':'';
+  document.getElementById('org-mode-existing').className = mode==='existing'?'btn btn-sm':'btn btn-sm btn-ghost';
+  document.getElementById('org-mode-new').className = mode==='new'?'btn btn-sm':'btn btn-sm btn-ghost';
+  document.getElementById('org-mode-existing').style.background = mode==='existing'?'var(--purple)':'';
+  document.getElementById('org-mode-existing').style.color = mode==='existing'?'#fff':'';
+  document.getElementById('org-mode-new').style.background = mode==='new'?'var(--purple)':'';
+  document.getElementById('org-mode-new').style.color = mode==='new'?'#fff':'';
+  document.getElementById('req-org').style.display = mode==='existing'?'block':'none';
+  document.getElementById('req-org-new').style.display = mode==='new'?'block':'none';
+  const hint=document.getElementById('org-mode-hint');
+  hint.textContent = mode==='new'
+    ? 'A new organization needs admin approval before anyone can log in under it. You\u2019ll be its first member once approved.'
+    : 'Pick from organizations already approved by the admin.';
+  if(mode==='new'){
+    document.getElementById('req-mgr-wrap').style.display='none';
+    const sel=document.getElementById('req-mgr');sel.innerHTML='<option value="">Select your manager</option>';
+  } else if(document.getElementById('req-role').value==='rep'){
+    populateManagerDropdown();
+  }
+}
+
 function toggleTerrField(){
   const role=document.getElementById('req-role').value;
   document.getElementById('req-terr-wrap').style.display=role==='rep'?'block':'none';
-  document.getElementById('req-mgr-wrap').style.display=role==='rep'?'block':'none';
-  if(role==='rep') populateManagerDropdown();
+  document.getElementById('req-mgr-wrap').style.display=(role==='rep'&&orgMode==='existing')?'block':'none';
+  if(role==='rep'&&orgMode==='existing') populateManagerDropdown();
 }
 async function onOrgChange(){
   const role=document.getElementById('req-role').value;
-  if(role==='rep') await populateManagerDropdown();
+  if(role==='rep'&&orgMode==='existing') await populateManagerDropdown();
 }
 async function populateManagerDropdown(){
   const orgId=document.getElementById('req-org').value;
@@ -297,6 +328,14 @@ async function doLogin(expectedRole, userField, passField, errId, btnId){
       await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'failed',reason:'Incorrect password'});
       showErr(errId,'Incorrect password. Please try again.');return;
     }
+    // Check the user's organization is approved
+    if(user.orgId){
+      const org = await fetchOrgById(user.orgId);
+      if(!org || org.status!=='approved'){
+        await addHistoryEntry({userId:user.id,name:user.name,username,role:user.role,status:'blocked',reason:'Organization pending approval'});
+        showOrgPendingScreen(user, org);return;
+      }
+    }
     // Success
     const newCount=(user.loginCount||0)+1;
     await updateUserDoc(user.id,{lastLoginAt:new Date().toISOString(),loginCount:newCount});
@@ -326,6 +365,15 @@ function showPendingScreen(user){
   document.getElementById('pend-uname').textContent=user.username;
   document.getElementById('pend-role').textContent=user.role==='manager'?'Manager':'Sales Rep';
   document.getElementById('pend-time').textContent=fmtDT(user.createdAt);
+  document.querySelector('#ls-pending .pend-sub').textContent='Your access request has been sent to the admin for approval. You will be able to log in once it is approved.';
+  goLS('ls-pending');
+}
+function showOrgPendingScreen(user, org){
+  document.getElementById('pend-name').textContent=user.name;
+  document.getElementById('pend-uname').textContent=user.username;
+  document.getElementById('pend-role').textContent=user.role==='manager'?'Manager':'Sales Rep';
+  document.getElementById('pend-time').textContent=fmtDT(org?org.createdAt:user.createdAt);
+  document.querySelector('#ls-pending .pend-sub').textContent='Your account is approved, but your organization "'+(org?org.name:user.orgName)+'" is still waiting on admin approval. Try again once that\u2019s approved.';
   goLS('ls-pending');
 }
 function showRejectedScreen(user){
@@ -337,19 +385,22 @@ function showRejectedScreen(user){
 // ── REQUEST ACCESS ─────────────────────────────────
 async function submitRequest(){
   const name=document.getElementById('req-name').value.trim();
-  const orgId=document.getElementById('req-org').value;
   const role=document.getElementById('req-role').value;
   const terr=document.getElementById('req-terr').value.trim();
-  const reportsTo=document.getElementById('req-mgr').value;
+  const reportsTo=orgMode==='existing'?document.getElementById('req-mgr').value:'';
   const uname=document.getElementById('req-uname').value.trim().toLowerCase();
   const p1=document.getElementById('req-pass1').value;
   const p2=document.getElementById('req-pass2').value;
+  const newOrgName=document.getElementById('req-org-new').value.trim();
+  const existingOrgId=document.getElementById('req-org').value;
 
   if(!name){showErr('req-err','Please enter your full name.');return;}
-  if(!orgId){showErr('req-err','Please select your organization.');return;}
+  if(orgMode==='new'&&!newOrgName){showErr('req-err','Please enter your new organization name.');return;}
+  if(orgMode==='existing'&&!existingOrgId){showErr('req-err','Please select your organization.');return;}
   if(!role){showErr('req-err','Please select your role.');return;}
+  if(orgMode==='new'&&role==='rep'){showErr('req-err','A brand-new organization needs a Manager first. Please select "Manager", or ask your manager to register the org.');return;}
   if(role==='rep'&&!terr){showErr('req-err','Please enter your territory.');return;}
-  if(role==='rep'&&!reportsTo){showErr('req-err','Please select your reporting manager.');return;}
+  if(role==='rep'&&orgMode==='existing'&&!reportsTo){showErr('req-err','Please select your reporting manager.');return;}
   if(!uname||uname.length<3){showErr('req-err','Username must be at least 3 characters.');return;}
   if(!/^[a-z0-9._-]+$/.test(uname)){showErr('req-err','Username may only contain letters, numbers, dots, hyphens and underscores.');return;}
   if(!p1||p1.length<6){showErr('req-err','Password must be at least 6 characters.');return;}
@@ -361,7 +412,15 @@ async function submitRequest(){
     const existing=await fetchUserByUsername(uname);
     if(existing){showErr('req-err','Username already taken. Please choose another.');return;}
 
-    const orgName=document.getElementById('req-org').selectedOptions[0]?.textContent||'';
+    let orgId, orgName, orgIsNew=false;
+    if(orgMode==='new'){
+      orgId = await createOrgRequest(newOrgName, name);
+      orgName = newOrgName;
+      orgIsNew = true;
+    } else {
+      orgId = existingOrgId;
+      orgName = document.getElementById('req-org').selectedOptions[0]?.textContent||'';
+    }
     const mgrName=role==='rep'?(document.getElementById('req-mgr').selectedOptions[0]?.textContent||''):null;
 
     const newUser={name,username:uname,password:p1,role,repId:null,territory:role==='rep'?terr:null,
@@ -369,12 +428,17 @@ async function submitRequest(){
       status:'pending',createdAt:new Date().toISOString(),approvedAt:null,approvedBy:null,
       rejectedAt:null,rejectionNote:'',lastLoginAt:null,loginCount:0};
     const newId=await createUser(newUser);
-    await addHistoryEntry({userId:newId,name,username:uname,role,status:'pending',reason:'New access request submitted ('+orgName+')'});
+    await addHistoryEntry({userId:newId,name,username:uname,role,status:'pending',reason:'New access request submitted ('+orgName+(orgIsNew?' — new org':'')+')'});
 
     document.getElementById('pend-name').textContent=name;
     document.getElementById('pend-uname').textContent=uname;
     document.getElementById('pend-role').textContent=role==='manager'?'Manager':'Sales Rep';
     document.getElementById('pend-time').textContent=fmtDT(newUser.createdAt);
+    if(orgIsNew){
+      document.querySelector('#ls-pending .pend-sub').textContent='Your new organization "'+orgName+'" and your account both need admin approval. You can log in once both are approved.';
+    } else {
+      document.querySelector('#ls-pending .pend-sub').textContent='Your access request has been sent to the admin for approval. You will be able to log in once it is approved.';
+    }
     goLS('ls-pending');
     toast(name+"'s request submitted!",'📨');
   } catch(e){
@@ -392,14 +456,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(auth?.role==='rep'){window.location.href='rep.html';return;}
   toggleTerrField();
   if(FIREBASE_CONFIGURED){
-    fetchOrgs().then(orgs=>{
+    fetchApprovedOrgs().then(orgs=>{
       const sel=document.getElementById('req-org');
       orgs.forEach(o=>{
         const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;sel.appendChild(opt);
       });
-      if(orgs.length===0){
-        showErr('req-err','No organizations have been set up yet. Ask your admin to create one first.');
-      }
     }).catch(e=>console.error(e));
   }
 });
